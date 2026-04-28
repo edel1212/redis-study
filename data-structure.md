@@ -230,3 +230,73 @@ ZRANGEBYSCORE ranking -inf +inf       # 전체
 ZRANGEBYSCORE ranking 100 +inf        # 100점 이상
 ZRANGEBYSCORE ranking -inf 200        # 200점 이하
 ```
+
+## Hash
+> 필드(field)와 값(value)의 쌍을 저장하는 자료구조입니다. 객체(Object)를 저장할 때 적합
+
+### String 저장과 비교
+- JSON 구조 자체를 HASH 형식으로 저장하여 **값 수정에 용의**하다.
+```text
+일반 String 방식:
+SET user:1 '{"name":"유정호", "age":30, "city":"incheon"}'
+        ↓
+필드 하나만 수정하려면 전체 JSON 다시 저장 ❌
+
+Hash 방식:
+HSET user:1 name "유정호" age 30 city "incheon"
+        ↓
+특정 필드만 수정 가능 ✅
+HSET user:1 age 31  # age만 변경
+```
+
+### 데이터 추가 / 조회
+```text
+# 단일 필드 추가
+HSET user:1 name "유정호"
+
+# 여러 필드 한번에 추가
+HSET user:1 name "유정호" age 30 city "incheon"
+
+# 단일 필드 조회
+HGET user:1 name           # "유정호"
+
+# 여러 필드 조회
+HMGET user:1 name age      # "유정호" 30
+
+# 전체 필드 조회
+HGETALL user:1
+
+# 모든 필드명만 조회
+HKEYS user:1               # name age city
+
+# 모든 값만 조회
+HVALS user:1               # "유정호" 30 "incheon"
+
+# 필드 개수
+HLEN user:1                # 3
+```
+
+### 필드 존재 여부 확인 / 삭제
+```text
+# 필드 존재 여부
+HEXISTS user:1 name        # 1 (있음)
+HEXISTS user:1 phone       # 0 (없음)
+
+# 특정 필드만 삭제
+HDEL user:1 city
+
+# 여러 필드 동시 삭제
+HDEL user:1 age phone
+```
+### 기존 값 대비 숫자 증감
+- HASH에서는`INCR` **명령어 없음**
+```text
+# 필드 값 증가
+HINCRBY user:1 age 1       # age 1 증가
+
+# 필드 값 감소
+HINCRBY user:1 age -5      # age 5 감소
+
+# 실수 증감
+HINCRBYFLOAT user:1 score 1.5
+```
