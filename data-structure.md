@@ -1,5 +1,112 @@
-# 핵심 자료구조
+# 필수 정보 및 핵심 자료 구조
 > SCAN 0 TYPE {{type}} 명령어를 통해 자료구조 개수를 알 수 있다.
+
+## [필수] Key 네이밍 컨벤션
+> Redis는 **단일 네임스페이스**이기에 모든 Key가 한곳에 관리되기에 **체계가 없으면 관리가 불가능**하다.
+```text
+처음부터 체계 없이 만들면 나중에 운영 / 디버깅 / 모니터링 시 큰 부담이 될 수 있다.
+****************************************************
+⭐️Result : 팀 차원에서 컨벤션 문서화 후 적용하는 것이 정석 
+****************************************************
+```
+
+### 표준 네이밍 패턴
+> {도메인}:{식별자}:{용도} [:추가정보]
+- 콜론(:) 구분자
+- 소문자 사용
+- 영문만 사용
+- 약어 사용 금지
+- 계층 구조
+```shell
+# 유저 관련
+user:1001:profile          # 유저 1001의 프로필
+user:1001:permissions      # 유저 1001의 권한
+
+# 게시글 관련
+post:100:detail            # 게시글 100 상세
+post:100:likes             # 게시글 100 좋아요 (Set)
+
+# 랭킹 관련
+ranking:game:total         # 게임 전체 랭킹
+ranking:game:daily         # 게임 일간 랭킹
+
+# 티켓팅 관련
+ticket:1:waiting           # 1번 공연 대기열
+ticket:1:entered:user:N    # 1번 공연 입장 권한
+seat:A12:lock              # 좌석 A12 분산락
+
+# 캐시 관련
+cache:product:101          # 상품 101 캐시
+cache:user:1001:profile    # 유저 1001 프로필 캐시
+
+# Rate Limiting
+ratelimit:api:user:1001    # 유저 1001 API 요청 제한
+```
+
+### 환경 / 서비스 분리 네이밍
+- prefix를 작성하여 명확히 분리 환경 / 도메인 분리
+```shell
+# 환경 분리
+prod:user:1001:profile
+dev:user:1001:profile
+stage:user:1001:profile
+
+# 서비스 분리 (멀티 도메인)
+shopping:user:1001:cart
+booking:user:1001:reservation
+chat:user:1001:messages
+```
+
+## [필수] TTL
+- Key가 자동으로 **삭제되기까지의 남은 시간**
+- Redis는 메모리 기반이므로 TTL로 자동 정리하지 않으면 메모리 폭발한다.
+
+| 옵션 | 단위 | 설명 | 사용 예시 |
+| :--- | :--- | :--- | :--- |
+| **EX** | 초 (Seconds) | 만료 시간을 **초** 단위로 설정 | `SET user:1 "yjh" EX 30` <br>(30초 후 삭제) |
+| **PX** | 밀리초 (ms) | 만료 시간을 **밀리초** 단위로 설정 | `SET user:1 "yjh" PX 30000` <br>(30초 후 삭제) |
+| **EXAT** | 타임스탬프 (초) | 만료될 **특정 시각**을 초 단위로 지정 | `SET user:1 "yjh" EXAT 1714125000` |
+| **PXAT** | 타임스탬프 (ms) | 만료될 **특정 시각**을 밀리초 단위로 지정 | `SET user:1 "yjh" PXAT 1714125000000` |
+| **KEEPTTL** | - | 기존에 설정된 **TTL을 유지**하며 값만 갱신 | `SET user:1 "new_val" KEEPTTL` |
+
+### TTL 관련 명령어
+- `EXPIRE {{key}} 60` : 초 단위 TTL 설정 
+- `PEXPIRE {{key}} 6000` : 밀리세컨드 단위 TTL 설정 
+- `EXPIREAT {{key}} {{timesteamp}}` : 지정 시간 까지 TTL 설 (초 단위 타임스템) 
+- `TTL {{key}}` : 지정 키 TTL 조회 (초)
+  - `100   # 100초 남음`
+  - `-1    # TTL 설정 안됨 (영구 보존)`
+  - `-2    # Key가 존재하지 않음`
+- `PTTL {{key}}` : 지정 키 TTL 조회 (밀리세컨)
+- `PERSIST {{key}}` : TTL 지정 제거 (영구 보존)
+
+### TTL 예시
+```shell
+# 1. 생성과 동시에 TTL (String만 가능 - ✅ 다른 자료구조에서는 해당 방식 사용 불가)
+SET name "유정호" EX 60
+
+# 2. 생성 후 별도로 TTL (모든 자료구조)
+ZADD ranking 100 "user:1"
+# 'ranking' 라는 sorted set 자료구조에 TTL 설정
+EXPIRE ranking 60
+
+# 3. 특정 시각에 만료
+EXPIREAT ticket:1:waiting 1700100000   # 공연 종료 시각
+
+# 4. 기존 TTL 유지하며 **값만 변경**
+SET name "김철수" KEEPTTL
+```
+
+## SET NX / XX 옵션
+> 명령어 마지막에 작성한다.
+- **NX** : 저장하려는 key가 없을 때만 SET을 진행한다.
+  - `SET age 20 SE 3000 NX`
+- **XX** : 저장하려는 key가 있을 때만 SET으로 덮어 씌운다.
+  - `SET age 15 SE 3000 XX`
+
+
+
+---
 
 ## String
 > 가장 기본이 되는 자료구조로 텍스트 뿐만아니라  숫자, JSON, 바이너리 데이터까지 저장 함
@@ -111,6 +218,8 @@ RPOP mylist    # C → 결과: [A, B]
 > 중복을 허용하지 않는 집합
 > SET자료 구조를 만들고 하위에 value를 넣는 개념이다.
 > - TTL 설정은 Key 단위가 아닌 SET 단위로 설정이 가능하다.
+- 같은 중복을 허용하지 않는 자료 구조지만 개수를 추정하는 ㅏ`HyperLogLog`도 있다.
+  - 중복 없는 데이터 개수(Cardinality)를 **추정하는 자료구조**
 
 ###  추가 / 조회 / 삭제
 ```shell
