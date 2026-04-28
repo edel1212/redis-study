@@ -199,3 +199,28 @@ ZINCRBY ranking 50 "유정호"   # 100 → 150
 # 기존 값에서  점수 감소
 ZINCRBY ranking -30 "이영희"  # 150 → 120
 ```
+
+### 랭킹 관련
+```shell
+# 가장 낮은 score 멤버 꺼내기 (꺼내면서 삭제)
+ZPOPMIN ranking          # 1개 꺼냄
+ZPOPMIN ranking 3        # 3개 꺼냄
+
+# 가장 높은 score 멤버 꺼내기
+ZPOPMAX ranking
+ZPOPMAX ranking 3
+
+# 전체 멤버 개수
+ZCARD ranking
+
+# score 범위로 조회 (예: 100~200점 사이)
+ZRANGEBYSCORE ranking 100 200
+
+# score 범위 내 멤버 개수
+ZCOUNT ranking 100 200
+
+# 무한대 표현
+ZRANGEBYSCORE ranking -inf +inf       # 전체
+ZRANGEBYSCORE ranking 100 +inf        # 100점 이상
+ZRANGEBYSCORE ranking -inf 200        # 200점 이하
+```
