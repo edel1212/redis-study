@@ -130,8 +130,14 @@ SCARD fruits           # 2
 SISMEMBER fruits "apple"   # 1 (있음)
 SISMEMBER fruits "grape"   # 0 (없음)
 
-# TTL 설정 ( SET 단위 지정만 가능 )
-EXPIRE fruits
+# TTL 설정 ( SET 단위 지정만 가능 ) - 상대 시간
+# - 명령어를 실행하는 현재 시점이 기준 적용
+EXPIRE fruits 3600
+
+# TTL 설정 ( SET 단위 지정만 가능 ) - 절대 시간
+# - 현재 시간과 관계없이 미래의 특정 지점이 기준
+EXPIREAT fruits 1777561200
+
 # TTL 확인
 TTL fruits
 
