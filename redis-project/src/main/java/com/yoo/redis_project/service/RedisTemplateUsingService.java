@@ -1,5 +1,6 @@
 package com.yoo.redis_project.service;
 
+import com.yoo.redis_project.dto.PostDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -64,6 +65,12 @@ public class RedisTemplateUsingService {
     public void saveString(String k, String v){
         redisTemplate.opsForValue().set(k, v);
     }
+
+    // DTO 저장
+    public void saveDto(String k, PostDto postDto){
+        redisTemplate.opsForValue().set(k, postDto);
+    }
+
 
     // ❌[비추천] 저장 - with TTL
     @Deprecated

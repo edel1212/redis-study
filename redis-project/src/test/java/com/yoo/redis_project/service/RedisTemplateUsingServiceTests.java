@@ -1,11 +1,13 @@
 package com.yoo.redis_project.service;
 
+import com.yoo.redis_project.dto.PostDto;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +39,17 @@ public class RedisTemplateUsingServiceTests {
         // 삭제
         redisService.deleteKey(key);
         assertThat(redisService.getString(key)).isEqualTo("null");
+    }
+
+    @Test
+    @DisplayName("DTO 저장")
+    void stringDto() {
+        String key = createKey("dto");
+        PostDto postDto = PostDto.builder()
+                .title("DTO 저장 테스트")
+                .createdAt(LocalDateTime.now())
+                .build();
+        redisService.saveDto(key, postDto);
     }
 
     @Test
