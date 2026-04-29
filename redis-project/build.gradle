@@ -30,6 +30,15 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// Testcontainers BOM (버전 통일)
+	testImplementation platform('org.testcontainers:testcontainers-bom:1.19.3')
+	testImplementation 'org.testcontainers:testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+
+	// Redis 모듈
+	testImplementation 'org.testcontainers:testcontainers'
+
 }
 
 tasks.named('test') {

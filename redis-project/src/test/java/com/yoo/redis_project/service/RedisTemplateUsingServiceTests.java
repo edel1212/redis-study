@@ -1,6 +1,7 @@
 package com.yoo.redis_project.service;
 
 import com.yoo.redis_project.dto.PostDto;
+import com.yoo.redis_project.support.RedisContainerSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Slf4j
-public class RedisTemplateUsingServiceTests {
+public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
 
     @Autowired
     private RedisTemplateUsingService redisService;
