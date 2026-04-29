@@ -65,7 +65,8 @@ public class RedisTemplateUsingService {
         redisTemplate.opsForValue().set(k, v);
     }
 
-    // 저장 - with TTL
+    // ❌[비추천] 저장 - with TTL
+    @Deprecated
     public void saveStringWithTTL(String k, String v, Long timeOut){
         redisTemplate.opsForValue().set(k, v, Duration.ofSeconds(timeOut));
     }
