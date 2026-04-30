@@ -429,7 +429,7 @@ public abstract class RedisContainerSupport {
     }
 }
 
-////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 @SpringBootTest
 @Slf4j
@@ -442,5 +442,38 @@ public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
 }    
 ```
 
+## @Cacheable ?
+> Spring 제공하는 캐시 표준 인터페이스
+> - 구체적인 캐시 구현체(Redis, Caffeine 등)에 의존하지 않고 동일한 코드로 캐싱을 적용할 수 있는 추상화 계층
+> - AOP 기반으로 동작
 
+### 추상화 구조
+```text
+[ 비즈니스 코드 (@Cacheable) ]
+            ↓
+[ Spring Cache 추상화 계층 ]
+            ↓
+[ CacheManager 인터페이스 ]
+            ↓
+   ┌────────┼────────┬─────────┐
+   ↓        ↓        ↓         ↓
+[Redis] [Caffeine] [EhCache] [...]
+```
 
+### 동작 흐름
+```text
+[ @Cacheable가 사용된 getPost(1) 호출 ]
+        ↓
+[ Redis 에서 "post:1" 조회 ]
+        ↓
+   ┌────┴─────────────┐
+   ↓                  ↓
+[Cache Hit]        [Cache Miss]
+   ↓                  ↓
+[즉시 리턴]        [메서드 실행 (DB 조회)]
+                      ↓
+                   [⭐️ 결과를 Redis 에 자동 저장]
+                      ↓
+                   [리턴]
+```
+    
