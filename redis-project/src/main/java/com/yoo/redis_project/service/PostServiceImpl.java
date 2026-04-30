@@ -32,7 +32,7 @@ public class PostServiceImpl {
     }
 
     // @Cacheable 사용 - cache Miss 시 자동으로 Redis에 저장됨
-    @Cacheable(value = "post", key = "#id")
+    @Cacheable(cacheNames = "post", key = "#id")
     public PostDto getPost(Long id){
         log.info("is read DB");
         return postRepository.findById(id)
