@@ -16,9 +16,8 @@ public abstract class RedisContainerSupport {
     @Container
     static GenericContainer<?> redis =
             new GenericContainer<>("redis:7.2-alpine")
+                    // 컨테이터 외부에 노출될 포트
                     .withExposedPorts(6379);
-
-    // 컨테이너 실행 후 동적으로 Spring 설정에 주입
 
     /**
      * 컨테이너 실행 후 설정 값 동적 주입
