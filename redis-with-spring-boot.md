@@ -361,3 +361,86 @@ public class RedisConfig {
      ↓ (역직렬화)
 [ 다시 PostDto로 정확히 복원 ]
 ```
+
+
+## Testcontainers 통합 테스트 환경 구축
+> CI/CD 환경에서 Redis 없으면 테스트 불가능한 환경을 개선하기 위함
+- Docker로 실제 Redis 컨테이너 띄워서 테스트 진행 가능
+  - 환경 통일, CI/CD 호환
+
+### 흐름
+```text
+[ 테스트 실행 ]
+     ↓
+[ Testcontainers가 Docker로 Redis 컨테이너 시작 ]
+     ↓
+[ 컨테이너의 host:port를 Spring 설정에 **동적**으로 주입 ]
+     ↓
+[ 테스트 코드 실행 ]
+     ↓
+[ 테스트 종료 후 컨테이너 자동 제거 ]
+```
+### 설정
+#### build.gradle
+```groovy
+dependencies {
+	// Testcontainers 
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+}
+```
+
+#### Test Code
+- 추상 클래스로 분리하여 사용
+- `@DynamicPropertySource`의 경우 `@ServiceConnection`로 대체가 가능함 (boot 버전 3.x 이상)
+```java
+@Testcontainers
+public abstract class RedisContainerSupport {
+
+    // 컨테이너 정보주입
+    @Container
+    static GenericContainer<?> redis =
+            new GenericContainer<>("redis:7.2-alpine")
+                    // 컨테이터 외부에 노출될 포트
+                    .withExposedPorts(6379);
+
+    /**
+     * 컨테이너 실행 후 설정 값 동적 주입
+     *
+     * @param registry the spring setting
+     */
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", redis::getFirstMappedPort);
+    }
+
+    @Autowired
+    RedisTemplate<String, Object> redisTemplate;
+
+    // 한건의 테스트가 끝날때다 Redis 데이터 초기화
+    @AfterEach
+    void tearDown() {
+        redisTemplate.getConnectionFactory()
+                .getConnection()
+                .serverCommands()
+                .flushAll();
+    }
+}
+
+////////////////
+
+@SpringBootTest
+@Slf4j
+public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
+
+    @Autowired
+    private RedisTemplateUsingService redisService;
+    
+    // Test Code
+}    
+```
+
+
+
