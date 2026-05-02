@@ -38,6 +38,7 @@
 - `RedisTemplate<String, Object>`의 경우 자동으로 bean에 등록되지 않으므로 수동 설정 필요
 - `GenericJackson2JsonRedisSerializer`를 사용하여 `@class` 정보를 자동으로 JSON에 포함하여 저장
     - 역직렬화 시 저장된 `@class`정보를 읽어서 반환
+    - 보안 및 확장성에는 좋지 못한 방식
 ```java
 @Configuration
 public class RedisConfig {
@@ -102,7 +103,21 @@ public class RedisTemplateUsingService {
     // 🔍 RedisTemplate<String, Object>는 Bean에 자동 등록 되어 있지 않기에 @Link{@RedisConfig} 설정이 필수이다.
     // ops -> Operations 줄임말
     private final RedisTemplate<String, Object> redisTemplate;
+    // string 방식으로만 value를 받음
+    private final StringRedisTemplate stringTemplate;
 
+    /**
+     * 👍 Object로 값을 받지 않기 때문에 stringTemplate 가 좀 더 안정적으로 사용이 가능함
+     *
+     */
+    public void redisMethod(){
+      stringTemplate.opsForValue().set("K","V");
+      stringTemplate.opsForList().leftPush("K","V");
+      stringTemplate.opsForSet().add("K","V");
+      stringTemplate.opsForZSet().add("K","V",200);
+  
+    }
+    
     /**
      * Key 삭제
      * - DEL 명령어는 데이터 타입(String, List, Set 등)에 관계없이 '키' 자체를 제거하는 공통 명령어를 사용
@@ -445,6 +460,7 @@ public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
 ## @Cacheable ?
 > Spring 제공하는 캐시 표준 인터페이스
 > - 구체적인 캐시 구현체(Redis, Caffeine 등)에 의존하지 않고 동일한 코드로 캐싱을 적용할 수 있는 추상화 계층
+>   - Redis가 없어도 내부 메모리로 동작 
 > - AOP 기반으로 동작
 
 ### 추상화 구조
@@ -476,4 +492,183 @@ public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
                       ↓
                    [리턴]
 ```
+
+### 설정 및 사용
+
+#### 활성화
+- `@EnableCaching`를 통해 활성화를 하지 않으면 **캐싱이 동작하지 않음** 
+```java
+@SpringBootApplication
+@EnableCaching  // ✅ 필수
+public class Application { }
+```
+
+#### 설정
+- `RedisCacheManager` 설정을 Bean으로 추가해야 한다.
+  - JSON 직렬화로 바꾸기 위해 RedisCacheManager를 직접 등록 (  **"기본 직렬화 방식이 부적절해서"** )
+- Spring에서 생성되는 Redis key의 suffix가 `"::"`방식으로 네이밍 컨벤션에 맞게 커스텀이 필요함 
+
+##### ✏️ 선택사항
+- 1 . Object Mapper 설정을 변경하여 JSON 구조 내 `@class` 정볼를 추가하는 방법 [👎]
+  - 보안상 이슈와 분산환경에서 사용하기 좋지 못함 - 내부에 class 정보가 노출됨
+- 2 . `withInitialCacheConfigurations`를 설정하여 각기  Class 구조를 주입해주는 방식 [👍]
+  - 대부분의 기업에서 사용하는 방식
+  - 캐시별 타입을 명시하므로 `objectMapper에서 따로 activateDefaultTyping`설정 없이 역직렬화 가능 → @class 노출 없음, 보안 안전
+  - 각각의 매핑 class별 TTL 설정이 가능하고 보안 안전함 
+- 3 . `StringRedisTemplte` 저장 및 값을 불러오는 방식 [👍]
+  - 대부분의 기업에서 사용하는 방식 - 공통 class를 생성하여 직렬화 및 역직렬화 진행
+  - cache 처리를 세밀하게 처리가 가능 - 다만 코드가 길어진다는 단점은 존재함
+
+##### Redis Config
+```java
+@Configuration
+public class RedisConfig {
+  /**
+   * ObjectMapper 공통 생성
+   * <br/>
+   * - RedisTemplate, RedisCacheManager : 모두에 동일하게 사용
+   */
+  private ObjectMapper buildObjectMapper() {
+    // 🔍 DTO 내 LocalTime 존재 시 "jackson.databind.exc.InvalidDefinitionException" 예외 방지
+    ObjectMapper objectMapper = new ObjectMapper();
+    // ✅ JavaTimeModule 등록
+    objectMapper.registerModule(new JavaTimeModule());
+    // ✅ LocalDateTime을 timestamps(숫자) 대신 문자열로 직렬화
+    objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+    // ☠️ ObjectMapper 변경 방식 :
+    // - 타입 정보를 JSON 에 포함시켜야 역직렬화 시 원래 타입으로 복원 가능
+    // 보안 및 분산 환경에 옳지 못한 방향
+//        objectMapper.activateDefaultTyping(
+//                LaissezFaireSubTypeValidator.instance,
+//                ObjectMapper.DefaultTyping.NON_FINAL,
+//                JsonTypeInfo.As.PROPERTY
+//        );
+
+    return objectMapper;
+  }
+
+  /**
+   * @Cacheable 이 사용하는 CacheManager
+   */
+  @Bean
+  public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+    ObjectMapper objectMapper = buildObjectMapper();
+
+    // ✅ 기본 설정: 매칭되지 않은 캐시명에 적용 (fallback)
+    RedisCacheConfiguration defaultConfig = baseConfig()
+            // TTL 설정
+            .entryTtl(Duration.ofMinutes(10))
+            // ✅ Value 는 JSON 설정
+            .serializeValuesWith(
+                    RedisSerializationContext.SerializationPair.fromSerializer(
+                            new GenericJackson2JsonRedisSerializer(objectMapper))
+            );
+
+    // ✅ 캐시별 타입 고정 설정 - 해당 keys는 cache
+    // Map의 key는 cacheNames과 꼭 같아야 한다 (그렇지 않으면 cache miss로 간주)
+    Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
+            "post",    typedConfig(PostDto.class,    Duration.ofMinutes(30), objectMapper)
+//                , "orders",   typedConfig(Order.class,   Duration.ofMinutes(5),  objectMapper)
+//                , "products", typedConfig(Product.class, Duration.ofHours(1),    objectMapper)
+    );
+
+    return RedisCacheManager.builder(connectionFactory)
+            .cacheDefaults(defaultConfig)
+            .withInitialCacheConfigurations(cacheConfigs)
+            .build();
+  }
+
+  /**
+   * 공통 베이스: suffix, key 직렬화 등
+   * <br/>
+   * SpringBoot에서 자동으로 생성되는 key의 suffix "::" 형식이기에 ":"형식으로 변경함
+   *
+   * @return  the 공통 설정 RedisCacheConfiguration
+   * */
+  private RedisCacheConfiguration baseConfig() {
+    return RedisCacheConfiguration.defaultCacheConfig()
+            .computePrefixWith(cacheName -> cacheName + ":")
+            .serializeKeysWith(
+                    RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer())
+            )
+            .disableCachingNullValues(); // null 캐싱 방지 (선택, 권장)
+  }
+
+  /**
+   * 특정 타입 전용 캐시 설정
+   * @param type the Object -> class 변환할 구조
+   * @param ttl   the 해당 매핑되는 key의 TTL 설정
+   * @param objectMapper the 사용될 ObjectMapper
+   *
+   * @return  the 지정 class의 RedisCacheConfiguration
+   * @param <T> the 변환할 class generic
+   */
+  private <T> RedisCacheConfiguration typedConfig(
+          Class<T> type, Duration ttl, ObjectMapper objectMapper) {
+
+    Jackson2JsonRedisSerializer<T> serializer =
+            new Jackson2JsonRedisSerializer<>(objectMapper, type);
+
+    return baseConfig()
+            .entryTtl(ttl)
+            .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+  }
+
+
+}
+```
+
+##### `withInitialCacheConfigurations` 방식 사용 예시
+- cacheNames는 무조건 config에 설정한 key와 **같아한다**
+```java
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class PostServiceImpl {
+    private final PostRepository postRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+
+    // cache Miss 시 자동으로 Redis에 저장됨
+    // - cacheNames는 무조건 config에 설정한 key와 같아함
+    @Cacheable(cacheNames = "post", key = "#id")
+    public PostDto getPost(Long id){
+        log.info("is read DB");
+        return postRepository.findById(id)
+                .map(PostDto::from)
+                .orElseThrow(() -> new RuntimeException("저장된 값을 찾을 수 없습니다."));
+    }
+
+    // key를 PathVariable 처럼 이어서 가능
+    @Cacheable(cacheNames = "post.search", key = "#keyword + ':' + #page")
+    public List<PostDto> search(String keyword, int page) { 
+        // → Redis 키: post.search:spring:0
+        return null;
+    }
+
+    // key를 객체에서 꺼내어 사용
+    @Cacheable(cacheNames = "user", key = "#user.id")
+    public UserDetail load(User user) { 
+        return null;
+    }
+
+    // 캐싱 "전" 여부 조건 처리 (condition : boolean 방식이면 어떤식으로든 처리 가능)
+    @Cacheable(cacheNames = "post", key = "#id", condition = "#id > 0")
+    public PostDto getPost(Long id){
+        // id가 0 이하면 캐시 자체를 안 탐 (매번 DB 조회)
+        return null;
+    }
+  
+    // 캐싱 "후" 여부 조건 처리
+    @Cacheable(cacheNames = "post", key = "#id", unless = "#result == null")
+    public PostDto getPost(Long id) { return null; }
+
+    @Cacheable(cacheNames = "posts", key = "#userId", unless = "#result.isEmpty()")
+    public List<PostDto> findByUser(Long userId) { return null; }
+  
+    @Cacheable(cacheNames = "post", key = "#id", unless = "#result?.status == 'DRAFT'")
+    public PostDto getPost(Long id) { return null; }
     
+}
+```
