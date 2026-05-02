@@ -4,6 +4,7 @@ import com.yoo.redis_project.dto.PostDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +22,19 @@ public class RedisTemplateUsingService {
     // 🔍 RedisTemplate<String, Object>는 Bean에 자동 등록 되어 있지 않기에 @Link{@RedisConfig} 설정이 필수이다.
     // ops -> Operations 줄임말
     private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringTemplate;
+
+    /**
+     * 👍 Object로 값을 받지 않기 때문에 stringTemplate 가 좀 더 안정적으로 사용이 가능함
+     *
+     */
+    public void redisMethod(){
+        stringTemplate.opsForValue().set("K","V");
+        stringTemplate.opsForList().leftPush("K","V");
+        stringTemplate.opsForSet().add("K","V");
+        stringTemplate.opsForZSet().add("K","V",200);
+
+    }
 
     /**
      * Key 삭제
