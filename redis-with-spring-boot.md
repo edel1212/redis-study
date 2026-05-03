@@ -461,7 +461,8 @@ public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
 > Spring 제공하는 캐시 표준 인터페이스
 > - 구체적인 캐시 구현체(Redis, Caffeine 등)에 의존하지 않고 동일한 코드로 캐싱을 적용할 수 있는 추상화 계층
 >   - Redis가 없어도 내부 메모리로 동작 
-> - AOP 기반으로 동작
+> - ✏️ [중요] AOP 기반으로 동작
+>   - `@Cacheable`로 지정한 메서드를 메서드에서 호출해도 캐싱되지 않는다 --> ☠️ Self-invocation 함정 - ❌ 프록시 우회로 캐시 동작 안 함 
 
 ### 추상화 구조
 ```text
@@ -670,5 +671,107 @@ public class PostServiceImpl {
     @Cacheable(cacheNames = "post", key = "#id", unless = "#result?.status == 'DRAFT'")
     public PostDto getPost(Long id) { return null; }
     
+}
+```
+
+## @CachePut
+> 항상 실행되며 캐시를 갱신함
+> - ✏️ 캐시 Hit : 메서드 실행 저장 || 캐시 Miss : 메서드 실행 후 저장
+```java
+@CachePut(cacheNames = "post", key = "#post.id")
+public Post update(Post post) {
+  return postRepository.save(post);  // 반환값이 캐시에 저장됨
+}
+```
+
+## @CacheEvict
+> 캐시 제거
+- `allEntries` : true일 경우 캐시 영역(지정 `cacheNames`) **전체 비움**
+  - 기본값 : false
+- `beforeInvocation` : true일 경우 메서드 실행 전에 삭제
+  - 기본값 : false
+
+```java
+@CacheEvict(
+    cacheNames = "post",
+    key = "#id",
+    allEntries = false,        // true 면 해당 캐시 영역 전체 삭제
+    beforeInvocation = false,  // true 면 메서드 실행 전에 삭제
+    condition = "#id > 0"
+)
+public void delete(Long id) {
+    postRepository.deleteById(id);
+}
+```
+
+### beforeInvocation 옵션
+> false 일 경우 메서드 종료 후 제가 || true 일 경우 메서드 실행 전 삭제
+
+#### 문제 사항
+```text
+[타임라인]
+시간 0: ServerA 가 delete(1) 시작
+시간 1: ServerA 가 DB 에서 post:1 삭제 (트랜잭션 안)
+시간 2: ServerB 가 findById(1) 호출 → 캐시 HIT → 옛날 데이터 반환 ⚠️
+시간 3: ServerA 트랜잭션 커밋
+시간 4: ServerA 가 캐시 삭제 (beforeInvocation=false 인 경우)
+
+beforeInvocation = false                      beforeInvocation = true
+─────────────────────────────                 ───────────────────────────
+시간 1~4 사이에 ServerB 는                       시간 0 직후 캐시 삭제됨
+삭제된 데이터를 캐시에서 읽음 ⚠️                     시간 1~3 동안 ServerB 가 조회하면
+                                              MISS → DB 조회 (트랜잭션 격리 수준에 따라
+                                              아직 옛 데이터일 수 있지만, 어쨌든
+                                              최종 일관성 회복 시점이 더 빠름)
+```
+
+#### beforeInvocation : true 의 위험 시나리오
+- "데이터는 그대로인데 캐시만 비워지는" 부작용
+  - update 시 비즈니스로직 내 예외처리가 발생된 경우 시나리오
+```text
+beforeInvocation = true                       beforeInvocation = false
+─────────────────────────────                 ───────────────────────────
+DB: 그대로 (트랜잭션 롤백) ✅                 DB: 그대로 ✅
+캐시: 삭제됨 ❌                               캐시: 그대로 ✅
+                                              
+→ DB 와 캐시 불일치 (역방향)                  → 일관성 OK
+→ 다음 조회 시 DB 재조회 (불필요)             → 캐시 HIT (효율적)
+```
+
+#### 설정 방향
+> 일반적인 CRUD 는 기본값(false) 으로 충분하나, "좀비 캐시 데이터" 가 치명적인 경우 (인증 정보, 권한, 결제 관련) 만 true 를 고려하여 진행
+- 단일 서버, 단순 CRUD : `false`
+- 분산 환경, 강한 일관성 필요 : `true`
+- 보안/권한 관련 (세션, 토큰) : `true`
+- DB 일시 장애 잦은 환경 : `false`
+
+## @Caching
+> @CachePut + @CacheEvict 사용 가능
+```java
+//  @CachePut + @CacheEvict 
+@Caching(
+    put = { @CachePut(cacheNames = "post", key = "#id") },
+    evict = { @CacheEvict(cacheNames = "postList", allEntries = true) }
+)
+@Transactional
+public Post update(Long id, String title, String content) {
+    log.info("✏️ 게시글 수정: id={}", id);
+    Post post = postRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Post not found: " + id));
+    post.setTitle(title);
+    post.setContent(content);
+    post.setUpdatedAt(LocalDateTime.now());
+    return postRepository.save(post);
+}
+
+// 2개의 key 제거 가능
+@Caching(evict = {
+    @CacheEvict(cacheNames = "post", key = "#id"),
+    @CacheEvict(cacheNames = "postList", allEntries = true)
+})
+@Transactional
+public void delete(Long id) {
+    log.info("🗑️ 게시글 삭제: id={}", id);
+    postRepository.deleteById(id);
 }
 ```
