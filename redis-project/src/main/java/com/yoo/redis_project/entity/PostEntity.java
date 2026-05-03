@@ -1,5 +1,6 @@
 package com.yoo.redis_project.entity;
 
+import com.yoo.redis_project.dto.RequestPost;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -23,4 +24,13 @@ public class PostEntity {
     @CreatedDate
     @Column(updatable = false, nullable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * 파라미터로 전달 받은 DTO
+     *
+     * @param requestPost the request Post
+     */
+    public void updateTitle(RequestPost requestPost){
+        this.title = requestPost.getTitle();
+    }
 }

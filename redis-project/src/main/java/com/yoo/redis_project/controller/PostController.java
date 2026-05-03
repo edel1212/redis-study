@@ -28,13 +28,24 @@ public class PostController {
         return ResponseEntity.ok(postService.getList());
     }
 
-    @GetMapping("/{id}/logic")
+    @GetMapping("/{id}/by-redis-tempalte")
     public ResponseEntity<PostDto> getPostWriteLogic(@PathVariable Long id){
-        return ResponseEntity.ok(postService.getPostWriteLogic(id));
+        return ResponseEntity.ok(postService.getPostByRedisTemplate(id));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<PostDto> getPost(@PathVariable Long id){
         return ResponseEntity.ok(postService.getPost(id));
+    }
+
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<PostDto> updatePost(@PathVariable Long id, @RequestBody RequestPost requestPost){
+        return ResponseEntity.ok(postService.update(id, requestPost));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Long> deletePost(@PathVariable Long id){
+        return ResponseEntity.ok(postService.deletePost(id));
     }
 }
