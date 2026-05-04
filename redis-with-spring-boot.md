@@ -771,11 +771,10 @@ public void delete(Long id) {
 }
 ```
 
-
 ## RedisCacheManager - transactionAware() 설정 
-- "트랜잭션 기준" evict를 언제 실제 반영할지 지정
-  - `true`: evict 호출이 발생해도 실제로는 트랜잭션 `commit` 시점까지 미뤄두고, `rollback`되면 **취소됨**
-- **중요 포인트** : **트랜잭션이 있을 때만 의미**가 있음
+- **"트랜잭션 기준"** 캐시 삭제 여부를 설정
+  - `setTransaction = true`: 캐싱 삭제는 트랜잭션 `commit` 시점까지 미뤄두고, `rollback`되면 **취소됨**
+- **중요 포인트** : **트랜잭션 어노테이션이 있을 때만 의미**가 있음
 
 ### 흐름
 ```text
@@ -792,11 +791,11 @@ public void delete(Long id) {
 > 👍 transactionAware()는 `@CacheEvict` 뿐만 아니라 `@CachePut`에도 적용이 돤디. 
 
 ```text
-[ beforeInvocation=false 만 ]
+[ beforeInvocation=false 만 사용 시 ]
    메서드 던진 예외 ──→ AOP advice 자체가 안 돔 → 캐시 안전 👍
    commit 시점 롤백 ──→ AOP advice 는 이미 실행됨 → 캐시 오염 👎
 
-[ transactionAware() 추가 ]
+[ transactionAware() 사용 시 ]
    메서드 던진 예외 ──→ AOP advice 자체가 안 돔 → 캐시 안전 👍
    commit 시점 롤백 ──→ AOP advice 는 실행됐지만, 실제 Redis I/O 는
                       TX commit 후로 지연 등록 → 롤백 시 실행 안 함 → 캐시 안전 👍
@@ -813,5 +812,204 @@ public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) 
             // ✅ transaction 이 종료 후 Redis에 반영
             .transactionAware()
             .build();
+}
+```
+
+## null 캐싱 방지
+> 실무 권장 패턴은 아래 조건 / 설정 둘 다 사용하는 것 (Defense in Depth)
+1. `unless = "#result == null"` 사용 (AOP - 메서드 단위)
+2. `disableCachingNullValues()` 설정 (RedisConfig - 설정 단위)
+  - 해당 설정 시 "1번"-`unless` 설정이 강제된다. (IllegalArgumentException 발생)
+  - return 자체가 NULL 이어야 발생하는 문제임
+
+### 동작 시점 비교
+```text
+@Cacheable(unless = "#result == null") 로 메서드 호출
+       │
+       ▼
+┌─────────────────────────────────────┐
+│  Spring Cache Abstraction (AOP)     │
+│  ─ unless 여기서 평가 ◀──── ① 1차 방어선
+│     null 이면 cache.put() 호출 X    │
+└─────────────────────────────────────┘
+       │ (unless 통과 시 cache.put 호출)
+       ▼
+┌─────────────────────────────────────┐
+│  RedisCache 구현체                  │
+│  ─ disableCachingNullValues 체크 ◀── ② 2차 방어선
+│     null 이면 IllegalArgumentEx 또는 │
+│     조용히 무시 (옵션 따라)          │
+└─────────────────────────────────────┘
+       │
+       ▼
+   Redis SET
+```
+
+### ⚠️ 알아둘 것
+```text
+`disableCachingNullValues()` 가 켜진 상태에서 unless 없이 메서드가 null 을 반환하면 IllegalArgumentException 이 발생한다.
+- 실무에선 unless 를 1차로 걸고, Config 는 백업으로 설정하는 것이 실무 패턴 
+```
+
+#### IllegalArgumentException이 발생하지 않는 코드 / 발생 코드
+```java
+// IllegalArgumentException 미발생 -> 반환전 예외 처리
+@Cacheable(cacheNames = "post", key = "#id")
+public PostDto getPost(Long id){
+  log.info("is read DB");
+  return postRepository.findById(id)
+          .map(PostDto::from)
+          .orElseThrow(() -> new RuntimeException("저장된 값을 찾을 수 없습니다."));
+}
+
+// IllegalArgumentException 발생 -> null 반환
+@Cacheable(cacheNames = "post", key = "#id")
+public PostDto getPost(Long id){
+  log.info("is read DB");
+  return postRepository.findById(id)
+          .map(PostDto::from)
+          .orElse(null);
+}
+```
+### null 캐싱이 필요한 케이스 - (Cache Penetration)
+> Cache Penetration (캐시 관통)?
+```text
+공격자/봇이 존재하지 않는 ID 로 100만 번 요청
+   │
+   ▼
+GET /posts/99999999  → 캐시 MISS (없는 ID 라 당연)
+   ▼
+DB 조회 → null 반환
+   ▼
+disableCachingNullValues 라서 캐시 저장 안 함
+   ▼
+다음 요청 또 캐시 MISS → DB 조회 → null
+   ▼
+DB 가 매번 부담받음 ❌  (캐시가 무용지물)
+```
+#### 해결책
+## 캐시 관통(Cache Penetration) 해결 전략 비교
+
+데이터베이스에 존재하지 않는 데이터를 반복적으로 조회하여 캐시를 거치지 않고 직접 DB에 부하를 주는 현상을 방지하기 위한 주요 전략들입니다.
+
+| 전략 | 동작 방식 | 장점 | 단점                                       |
+| :--- | :--- | :--- |:-----------------------------------------|
+| **null 캐싱 허용** | DB 조회 시 null인 결과를 짧은 TTL로 캐싱 | 단순하고 즉시 적용 가능 | 메모리 낭비 (존재하지 않는 ID들도 캐시 점유 - TTL을 짧게 설정) |
+| **Bloom Filter** | "이 ID가 진짜 있나?"를 DB 호출 전 사전 체크 | DB 호출 0번 가능 (성능 최적화) | 별도 구조 운영 필요, 오탐(False Positive) 존재       |
+| **요청 검증** | 비정상적인  패턴을 사전에 차단 | 가장 근본적인 방어 | 모든 공격 패턴 정의가 어려움                         |
+
+
+## 설정 방법
+- 응답마다 null 허용할 부분이 있을 경우 예외 처리 필요
+```java
+package com.yoo.redis_project.config;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.yoo.redis_project.dto.PostDto;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Configuration
+public class RedisConfig {
+  /**
+   * @Cacheable 이 사용하는 CacheManager
+   */
+  @Bean
+  public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+    ObjectMapper objectMapper = buildObjectMapper();
+
+    // ✅ 정책 1: 일반 캐시 (null 차단, TTL 10분)
+    RedisCacheConfiguration defaultConfig = baseConfig()
+            .entryTtl(Duration.ofMinutes(10))
+            // ✅ Value 는 JSON 설정
+            .serializeValuesWith(genericValueSerializer(objectMapper))
+            // null 차딘
+            .disableCachingNullValues();
+
+    // ✅ 정책 2: null 허용 캐시 (Cache Penetration 방어, TTL 30초)
+    RedisCacheConfiguration nullSafeConfig = baseConfig()
+            .entryTtl(Duration.ofSeconds(30))
+            .serializeValuesWith(genericValueSerializer(objectMapper));
+
+    // null 허용 캐시들
+    List<String> nullSafeCaches = List.of(
+            "post-existence",
+            "user-existence"
+    );
+
+    // key 별 캐시 저장 Map
+    Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
+
+    // Null 허용 캐시 추가
+    nullSafeCaches.forEach(name -> cacheConfigs.put(name, nullSafeConfig));
+
+    // 타입 고정 캐시 (별도 정책) - 필요의 경우 typedConfig 수정을 통해 null 허용 구분 값 추가
+    cacheConfigs.put("post", typedConfig(PostDto.class, Duration.ofMinutes(30), objectMapper));
+
+    return RedisCacheManager.builder(connectionFactory)
+            .cacheDefaults(defaultConfig)
+            .withInitialCacheConfigurations(cacheConfigs)
+            // ✅ transaction 이 종료 후 Redis에 반영
+            .transactionAware()
+            .build();
+  }
+
+  /**
+   * 공통 베이스: prefix, key 직렬화, null 캐싱 방지 등
+   * <br/>
+   * SpringBoot에서 자동으로 생성되는 key의 prefix가 "::" 형식이기에 ":"형식으로 변경함
+   *
+   * @return  the 공통 설정 RedisCacheConfiguration
+   * */
+  private RedisCacheConfiguration baseConfig() {
+    return RedisCacheConfiguration.defaultCacheConfig()
+            .computePrefixWith(cacheName -> cacheName + ":")
+            .serializeKeysWith(
+                    RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer())
+            )
+            ;
+  }
+
+  /**
+   * 특정 타입 전용 캐시 설정
+   * @param type the Object -> class 변환할 구조
+   * @param ttl   the 해당 매핑되는 key의 TTL 설정
+   * @param objectMapper the 사용될 ObjectMapper
+   *
+   * @return  the 지정 class의 RedisCacheConfiguration
+   * @param <T> the 변환할 class generic
+   */
+  private <T> RedisCacheConfiguration typedConfig(
+          Class<T> type, Duration ttl, ObjectMapper objectMapper) {
+
+    Jackson2JsonRedisSerializer<T> serializer =
+            new Jackson2JsonRedisSerializer<>(objectMapper, type);
+
+    return baseConfig()
+            .entryTtl(ttl)
+            .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+  }
+  
+  // value Serializer
+  private RedisSerializationContext.SerializationPair<Object> genericValueSerializer(
+          ObjectMapper om) {
+    return RedisSerializationContext.SerializationPair
+            .fromSerializer(new GenericJackson2JsonRedisSerializer(om));
+  }
+
 }
 ```
