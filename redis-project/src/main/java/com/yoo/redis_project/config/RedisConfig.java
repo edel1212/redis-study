@@ -15,6 +15,8 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Configuration
@@ -52,21 +54,33 @@ public class RedisConfig {
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         ObjectMapper objectMapper = buildObjectMapper();
 
-        // ✅ 기본 설정: 매칭되지 않은 캐시명에 적용 (fallback)
+        // ✅ 정책 1: 일반 캐시 (null 차단, TTL 10분)
         RedisCacheConfiguration defaultConfig = baseConfig()
                 .entryTtl(Duration.ofMinutes(10))
                 // ✅ Value 는 JSON 설정
-                .serializeValuesWith(
-                        RedisSerializationContext.SerializationPair.fromSerializer(
-                                new GenericJackson2JsonRedisSerializer(objectMapper))
-                );
+                .serializeValuesWith(genericValueSerializer(objectMapper))
+                // null 차딘
+                .disableCachingNullValues();
 
-        // ✅ 캐시별 타입 고정 설정 - 해당 keys는 cache
-        Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
-                "post",    typedConfig(PostDto.class,    Duration.ofMinutes(30), objectMapper)
-//                , "orders",   typedConfig(Order.class,   Duration.ofMinutes(5),  objectMapper)
-//                , "products", typedConfig(Product.class, Duration.ofHours(1),    objectMapper)
+        // ✅ 정책 2: null 허용 캐시 (Cache Penetration 방어, TTL 30초)
+        RedisCacheConfiguration nullSafeConfig = baseConfig()
+                .entryTtl(Duration.ofSeconds(30))
+                .serializeValuesWith(genericValueSerializer(objectMapper));
+
+        // null 허용 캐시들
+        List<String> nullSafeCaches = List.of(
+                "post-existence",
+                "user-existence"
         );
+
+        // key 별 캐시 저장 Map
+        Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
+
+        // Null 허용 캐시 추가
+        nullSafeCaches.forEach(name -> cacheConfigs.put(name, nullSafeConfig));
+
+        // 타입 고정 캐시 (별도 정책) - 필요의 경우 typedConfig 수정을 통해 null 허용 구분 값 추가
+        cacheConfigs.put("post", typedConfig(PostDto.class, Duration.ofMinutes(30), objectMapper));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
@@ -77,7 +91,7 @@ public class RedisConfig {
     }
 
     /**
-     * 공통 베이스: prefix, key 직렬화 등
+     * 공통 베이스: prefix, key 직렬화, null 캐싱 방지 등
      * <br/>
      * SpringBoot에서 자동으로 생성되는 key의 prefix가 "::" 형식이기에 ":"형식으로 변경함
      *
@@ -89,7 +103,7 @@ public class RedisConfig {
                 .serializeKeysWith(
                         RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer())
                 )
-                .disableCachingNullValues(); // null 캐싱 방지 (선택, 권장)
+                ;
     }
 
     /**
@@ -112,5 +126,16 @@ public class RedisConfig {
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
     }
 
+    /**
+     * value 직렬화
+     *
+     * @param om the objectMapper
+     * @return the RedisSerializationContext.SerializationPair
+     */
+    private RedisSerializationContext.SerializationPair<Object> genericValueSerializer(
+            ObjectMapper om) {
+        return RedisSerializationContext.SerializationPair
+                .fromSerializer(new GenericJackson2JsonRedisSerializer(om));
+    }
 
 }
