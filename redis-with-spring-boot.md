@@ -1013,3 +1013,32 @@ public class RedisConfig {
 
 }
 ```
+
+## Key Prefix 컨벤션 — 멀티 환경
+> {서비스명}:{캐시명}:{key} 구조로 진행 
+> - ex) order-svc:post:1    ==> 서비스 분리가 명확하여 MSA 환경 👍
+```java
+@Configuration
+public class RedisConfig {
+    @Value("${spring.application.name}")
+    private String appName;
+
+    /**
+     * 공통 베이스: prefix, key 직렬화, null 캐싱 방지 등
+     * <br/>
+     * SpringBoot에서 자동으로 생성되는 key의 prefix가 "::" 형식이기에 ":"형식으로 변경함
+     *
+     * @return  the 공통 설정 RedisCacheConfiguration
+     * */
+    private RedisCacheConfiguration baseConfig() {
+        return RedisCacheConfiguration.defaultCacheConfig()
+                .computePrefixWith(cacheName -> appName + ":" + cacheName + ":")
+                .serializeKeysWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer())
+                )
+                ;
+    }
+
+}
+
+```
