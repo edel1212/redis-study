@@ -706,6 +706,7 @@ public void delete(Long id) {
 
 ### beforeInvocation 옵션
 > false 일 경우 메서드 종료 후 제가 || true 일 경우 메서드 실행 전 삭제
+> - ✅ `beforeInvocation=true`는 정말 특수 케이스에서만 사용
 
 #### 문제 사항
 ```text
@@ -728,6 +729,7 @@ beforeInvocation = false                      beforeInvocation = true
 #### beforeInvocation : true 의 위험 시나리오
 - "데이터는 그대로인데 캐시만 비워지는" 부작용
   - update 시 비즈니스로직 내 예외처리가 발생된 경우 시나리오
+  
 ```text
 beforeInvocation = true                       beforeInvocation = false
 ─────────────────────────────                 ───────────────────────────
@@ -737,13 +739,6 @@ DB: 그대로 (트랜잭션 롤백) ✅                 DB: 그대로 ✅
 → DB 와 캐시 불일치 (역방향)                  → 일관성 OK
 → 다음 조회 시 DB 재조회 (불필요)             → 캐시 HIT (효율적)
 ```
-
-#### 설정 방향
-> 일반적인 CRUD 는 기본값(false) 으로 충분하나, "좀비 캐시 데이터" 가 치명적인 경우 (인증 정보, 권한, 결제 관련) 만 true 를 고려하여 진행
-- 단일 서버, 단순 CRUD : `false`
-- 분산 환경, 강한 일관성 필요 : `true`
-- 보안/권한 관련 (세션, 토큰) : `true`
-- DB 일시 장애 잦은 환경 : `false`
 
 ## @Caching
 > @CachePut + @CacheEvict 사용 가능
@@ -773,5 +768,50 @@ public Post update(Long id, String title, String content) {
 public void delete(Long id) {
     log.info("🗑️ 게시글 삭제: id={}", id);
     postRepository.deleteById(id);
+}
+```
+
+
+## RedisCacheManager - transactionAware() 설정 
+- "트랜잭션 기준" evict를 언제 실제 반영할지 지정
+  - `true`: evict 호출이 발생해도 실제로는 트랜잭션 `commit` 시점까지 미뤄두고, `rollback`되면 **취소됨**
+- **중요 포인트** : **트랜잭션이 있을 때만 의미**가 있음
+
+### 흐름
+```text
+@Transactional updatePost()
+├─ DB UPDATE
+├─ @CachePut → Synchronization 등록 (지연)
+├─ 메서드 정상 종료
+├─ 트랜잭션 commit 성공
+│  └─ Synchronization.afterCommit() → Redis SET 실행 ✅
+└─ 결과: DB(새값) = Redis(새값) ✅
+```
+
+#### `beforeInvocation=false` 와 차이?
+> 👍 transactionAware()는 `@CacheEvict` 뿐만 아니라 `@CachePut`에도 적용이 돤디. 
+
+```text
+[ beforeInvocation=false 만 ]
+   메서드 던진 예외 ──→ AOP advice 자체가 안 돔 → 캐시 안전 👍
+   commit 시점 롤백 ──→ AOP advice 는 이미 실행됨 → 캐시 오염 👎
+
+[ transactionAware() 추가 ]
+   메서드 던진 예외 ──→ AOP advice 자체가 안 돔 → 캐시 안전 👍
+   commit 시점 롤백 ──→ AOP advice 는 실행됐지만, 실제 Redis I/O 는
+                      TX commit 후로 지연 등록 → 롤백 시 실행 안 함 → 캐시 안전 👍
+```
+
+#### 설정
+```java
+@Bean
+public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+    // code ..
+    return RedisCacheManager.builder(connectionFactory)
+            .cacheDefaults(defaultConfig)
+            .withInitialCacheConfigurations(cacheConfigs)
+            // ✅ transaction 이 종료 후 Redis에 반영
+            .transactionAware()
+            .build();
 }
 ```

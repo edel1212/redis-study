@@ -1,9 +1,7 @@
 package com.yoo.redis_project.config;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yoo.redis_project.dto.PostDto;
 import org.springframework.context.annotation.Bean;
@@ -11,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -48,32 +45,6 @@ public class RedisConfig {
         return objectMapper;
     }
 
-    @Bean
-    public RedisTemplate<String, Object> redisTemplate( RedisConnectionFactory connectionFactory ) {
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-        StringRedisSerializer stringSerializer = new StringRedisSerializer();
-
-        // 설정이 간단하고 범용적이기에 GenericJackson2JsonRedisSerializer로 직렬화 설정을 한다.
-        GenericJackson2JsonRedisSerializer jsonSerializer =
-                new GenericJackson2JsonRedisSerializer(buildObjectMapper());
-
-        // Key 직렬화 (String)
-        // 최상위 Key
-        template.setKeySerializer(stringSerializer);
-        // Hash 내부 Field명
-        template.setHashKeySerializer(stringSerializer);
-
-        // Value 직렬화 (JSON)
-        // 최상위 Key
-        template.setValueSerializer(jsonSerializer);
-        // Hash 내부 Field명
-        template.setHashValueSerializer(jsonSerializer);
-
-        return template;
-    }
-
     /**
      * @Cacheable 이 사용하는 CacheManager
      */
@@ -100,6 +71,8 @@ public class RedisConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(cacheConfigs)
+                // ✅ transaction 이 종료 후 Redis에 반영
+                .transactionAware()
                 .build();
     }
 
