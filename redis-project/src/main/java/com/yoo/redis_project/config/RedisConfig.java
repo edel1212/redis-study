@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yoo.redis_project.dto.PostDto;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
@@ -21,6 +22,8 @@ import java.util.Map;
 
 @Configuration
 public class RedisConfig {
+    @Value("${spring.application.name}")
+    private String appName;
 
     /**
      * ObjectMapper 공통 생성
@@ -99,7 +102,7 @@ public class RedisConfig {
      * */
     private RedisCacheConfiguration baseConfig() {
         return RedisCacheConfiguration.defaultCacheConfig()
-                .computePrefixWith(cacheName -> cacheName + ":")
+                .computePrefixWith(cacheName -> appName + ":" + cacheName + ":")
                 .serializeKeysWith(
                         RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer())
                 )
