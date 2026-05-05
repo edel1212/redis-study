@@ -110,4 +110,124 @@ public class PostServiceImpl {
 }
 ```
 
+## 동적 TTL
+> 필수❌, Hot Key 또는 트래픽 편차가 클 경우 적용을 고려하자 구현 시 비용 및 구조가 복잡해짐
 
+### 단계별 TTL 적용
+```text
+┌─ 1단계: 모든 캐시 동일 TTL ─────────────────┐
+│  (안티패턴)                                  │
+│  → 비효율, Stampede 위험                     │
+└──────────────────────────────────────────────┘
+              ↓ 진화
+
+┌─ 2단계: 캐시 종류별 TTL 분리 (정적) ⭐ ─────┐
+│  (실무 80% 가 여기서 끝남)                   │
+│  → 회원=10분, 메뉴=1시간, 토큰=만료시간       │
+│  → 3-4 ① 에서 다룬 내용                     │
+└──────────────────────────────────────────────┘
+              ↓ ✅ 더 정교해질 필요가 있을 때만
+
+┌─ 3단계: 동일 캐시 내에서도 동적 TTL ⭐ ────┐
+│  (Hot Key, 이커머스, 콘텐츠 서비스)          │
+│  → 같은 "concert" 캐시여도 인기도별 차등       │
+│  → 3-4 ③ 에서 다루는 내용                  │
+│                                              │
+│  결정 기준 (자주 쓰는 것):                    │
+│  - 인기도 (view count, like count)            │
+│  - 데이터 타입 (메타 vs 가격 vs 재고)          │
+│  - 시간대 (오픈 임박)                         │
+│  - 사용자 등급                                │
+└──────────────────────────────────────────────┘
+```
+### 동적 TTL 결정 기준 (예시)
+- 트래픽량 기반
+```text
+조회수 / 좋아요 / 즐겨찾기 수 → TTL 차등
+
+티켓 예매 예시:
+- 핫 공연 (10만+ 조회): 2시간
+- 인기 공연 (1만+):     30분
+- 일반 공연:            5분
+```
+- 데이터 타입 기반
+```text
+같은 도메인 내에서도 데이터 종류별로 다르게:
+
+공연 메타정보 (제목/설명):  1시간 (잘 안 바뀜)
+공연 가격:               5분  (변경 가능성 ↑)
+잔여 좌석 수:             캐시 X (실시간 필요)
+공연자 정보:             24시간 (거의 안 바뀜)
+```
+- 시간대 기반
+```text
+오픈 시간이 다가올수록 TTL 짧게:
+
+D-7 ~ D-2:    1시간 (변경 잦지 않음)
+D-1:          10분  (정보 업데이트 가능성 ↑)
+오픈 당일:     1분   (실시간 가까이)
+오픈 후:      5분   (안정화)
+```
+
+### ⚠️ 실무 함정
+
+### 함정 1. TTL이 너무 동적이면 디버깅이 어려워짐
+- 해결 방법: TTL 결정 로직을 한 곳(CachePolicy)에 모으고, 로깅 필수.
+
+### 함정 2. 인기도 측정 자체가 부하 (조회 자체가 부하)
+- 해결 방법: 
+  - 인기도는 MISS 시점에만 조회 (HIT 시는 불필요)
+  - 인기도 자체를 로컬 캐시(Caffeine)에 짧게 캐싱
+
+### 적용 Policy Component
+```java
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class DynamicCachePolicy {
+    private final StringRedisTemplate stringRedisTemplate;
+
+    // Jitter ratios
+    private double jitterRatio = .2;
+
+    // 인기도 기준 (조회수)
+    private static final long POPULAR_THRESHOLD = 10_000L;
+    private static final long HOT_THRESHOLD = 100_000L;
+
+    // TTL 정책
+    private static final Duration TTL_HOT      = Duration.ofHours(2);    // 핫 공연
+    private static final Duration TTL_POPULAR  = Duration.ofMinutes(30); // 인기 공연
+    private static final Duration TTL_NORMAL   = Duration.ofMinutes(5);  // 일반 공연
+
+    /**
+     * 공연 ID 기준으로 TTL 결정
+     */
+    public Duration resolveTtl(Long concertId) {
+        long viewCount = getViewCount(concertId);
+
+        Duration baseTtl;
+        if (viewCount >= HOT_THRESHOLD) {
+            baseTtl = TTL_HOT;
+        } else if (viewCount >= POPULAR_THRESHOLD) {
+            baseTtl = TTL_POPULAR;
+        } else {
+            baseTtl = TTL_NORMAL;
+        }// if - else
+
+        log.debug("Resolved TTL for concert={}, viewCount={}, ttl={}",
+                concertId, viewCount, baseTtl);
+
+        // ✅ Jitter 적용 (Stampede 방지 - ② 의 결과물)
+        return TtlUtils.jitter(baseTtl, jitterRatio);
+    }
+
+    /**
+     * Redis 에서 조회수 가져오기
+     */
+    private long getViewCount(Long concertId) {
+        String key = "concert:view-count:" + concertId;
+        String count = stringRedisTemplate.opsForValue().get(key);
+        return count == null ? 0L : Long.parseLong(count);
+    }
+}
+```
