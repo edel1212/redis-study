@@ -5,6 +5,7 @@ import com.yoo.redis_project.dto.RequestPost;
 import com.yoo.redis_project.entity.PostEntity;
 import com.yoo.redis_project.repository.PostRepository;
 import com.yoo.redis_project.utils.RedisCacheHelper;
+import com.yoo.redis_project.utils.TtlUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.swing.text.html.Option;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -132,4 +134,31 @@ public class PostServiceImpl {
         log.info("🗑️ 게시글 삭제: id={}", id);
         postRepository.deleteById(id);
     }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+
+    // Jitter를 사용해서 TTL 설정
+    public PostDto updatePostByJitter(Long id, RequestPost requestPost){
+        String key = "post:" + id;
+        // [cache hit] 캐시 조회
+        Optional<PostDto> optionalCached =  redisCacheHelper.get(key, PostDto.class);
+        if (optionalCached.isPresent()) {
+            PostDto cached = optionalCached.get();
+            log.info("cache hit : {}", cached);
+            return cached;
+        } // if
+
+        log.info("cache miss read DB");
+        // [cache miss] DB 조회
+        PostDto postDto = postRepository.findById(id)
+                .map(PostDto::from)
+                .orElseThrow(() -> new RuntimeException("저장된 값을 찾을 수 없습니다."));
+
+        log.info("write cache");
+        Duration ttlByJitter =  TtlUtils.jitter(Duration.ofMinutes(10), .2);
+        redisCacheHelper.set(key, postDto, ttlByJitter);
+
+        return postDto;
+    }
+
 }
