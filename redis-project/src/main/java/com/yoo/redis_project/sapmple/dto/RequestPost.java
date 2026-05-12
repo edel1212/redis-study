@@ -1,6 +1,6 @@
-package com.yoo.redis_project.dto;
+package com.yoo.redis_project.sapmple.dto;
 
-import com.yoo.redis_project.entity.PostEntity;
+import com.yoo.redis_project.sapmple.entity.PostEntity;
 import lombok.*;
 
 @Getter

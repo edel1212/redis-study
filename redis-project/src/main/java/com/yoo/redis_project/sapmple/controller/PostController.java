@@ -1,8 +1,8 @@
-package com.yoo.redis_project.controller;
+package com.yoo.redis_project.sapmple.controller;
 
-import com.yoo.redis_project.dto.PostDto;
-import com.yoo.redis_project.dto.RequestPost;
-import com.yoo.redis_project.service.PostServiceImpl;
+import com.yoo.redis_project.sapmple.dto.PostDto;
+import com.yoo.redis_project.sapmple.dto.RequestPost;
+import com.yoo.redis_project.sapmple.service.PostServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

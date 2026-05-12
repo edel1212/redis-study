@@ -3,7 +3,7 @@ package com.yoo.redis_project.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.yoo.redis_project.dto.PostDto;
+import com.yoo.redis_project.sapmple.dto.PostDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,15 +37,6 @@ public class RedisConfig {
         objectMapper.registerModule(new JavaTimeModule());
         // ✅ LocalDateTime을 timestamps(숫자) 대신 문자열로 직렬화
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-
-        // ☠️ ObjectMapper 변경 방식 :
-        // - 타입 정보를 JSON 에 포함시켜야 역직렬화 시 원래 타입으로 복원 가능
-        // 보안 및 분산 환경에 올지 못한 방향
-//        objectMapper.activateDefaultTyping(
-//                LaissezFaireSubTypeValidator.instance,
-//                ObjectMapper.DefaultTyping.NON_FINAL,
-//                JsonTypeInfo.As.PROPERTY
-//        );
 
         return objectMapper;
     }
@@ -111,6 +102,8 @@ public class RedisConfig {
 
     /**
      * 특정 타입 전용 캐시 설정
+     * <p>Null 저장 허용 - 비즈니스 로직 내 예외 처리</p>
+     *
      * @param type the Object -> class 변환할 구조
      * @param ttl   the 해당 매핑되는 key의 TTL 설정
      * @param objectMapper the 사용될 ObjectMapper
@@ -126,7 +119,6 @@ public class RedisConfig {
 
         return baseConfig()
                 .entryTtl(ttl)
-                .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
     }
 

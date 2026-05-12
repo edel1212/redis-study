@@ -1,6 +1,6 @@
-package com.yoo.redis_project.entity;
+package com.yoo.redis_project.sapmple.entity;
 
-import com.yoo.redis_project.dto.RequestPost;
+import com.yoo.redis_project.sapmple.dto.RequestPost;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;

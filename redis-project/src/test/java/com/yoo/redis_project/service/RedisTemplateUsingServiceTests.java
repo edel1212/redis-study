@@ -1,6 +1,7 @@
 package com.yoo.redis_project.service;
 
-import com.yoo.redis_project.dto.PostDto;
+import com.yoo.redis_project.sapmple.dto.PostDto;
+import com.yoo.redis_project.sapmple.service.RedisTemplateUsingService;
 import com.yoo.redis_project.support.RedisContainerSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;

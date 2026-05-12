@@ -1,9 +1,9 @@
-package com.yoo.redis_project.service;
+package com.yoo.redis_project.sapmple.service;
 
-import com.yoo.redis_project.dto.PostDto;
-import com.yoo.redis_project.dto.RequestPost;
-import com.yoo.redis_project.entity.PostEntity;
-import com.yoo.redis_project.repository.PostRepository;
+import com.yoo.redis_project.sapmple.dto.PostDto;
+import com.yoo.redis_project.sapmple.dto.RequestPost;
+import com.yoo.redis_project.sapmple.entity.PostEntity;
+import com.yoo.redis_project.sapmple.repository.PostRepository;
 import com.yoo.redis_project.utils.RedisCacheHelper;
 import com.yoo.redis_project.utils.TtlUtils;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +15,6 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.swing.text.html.Option;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;

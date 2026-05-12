@@ -1,12 +1,11 @@
-package com.yoo.redis_project.service;
+package com.yoo.redis_project.sapmple.service;
 
-import com.yoo.redis_project.dto.PostDto;
+import com.yoo.redis_project.sapmple.dto.PostDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Date;
