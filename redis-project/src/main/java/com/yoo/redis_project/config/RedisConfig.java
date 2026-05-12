@@ -126,6 +126,7 @@ public class RedisConfig {
 
         return baseConfig()
                 .entryTtl(ttl)
+                .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
     }
 
