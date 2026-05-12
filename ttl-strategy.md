@@ -231,3 +231,50 @@ public class DynamicCachePolicy {
     }
 }
 ```
+
+## 캐시 키 전략 (KeyGenerator)
+> 실무에서는 KeyGenerator 는 거의 안 쓴다고 보면된다.
+> - `@Cacheable(cacheNames= "foo", key = "#paramName")` <- 와 같이 SpEL 명시하는 것이 실무 바식
+- 파라미터 개수가 늘거나 DTO내 필드가 늘어날 경우 정상적으로 Redis에서 **값을 찾을 수 없음**
+
+### 문제점 요약
+> SpEL 명시하지 않을 경우 Spring 내에서 자동으로 Key를 생성한다.
+```java
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class KeyGeneratorServiceImpl {
+
+    private final PostRepository postRepository;
+
+    // 👍 SpEL 명시 안전함
+    @Cacheable(cacheNames = "post", key = "#sample.id")
+    public PostDto getPostType1(RequestSample sample){
+        log.info("read DB");
+        PostEntity postEntity = postRepository.findById(sample.getId())
+                .orElseThrow(()-> new RuntimeException("Not Found"));
+        return PostDto.from(postEntity);
+    }
+
+    // 👎 KeyGenerator로 생성 
+    // - redis-key : "yoo:post:SimpleKey [3, 34]"
+    @Cacheable(cacheNames = "post")
+    public PostDto getPostType2(Long id, Long testNum){
+        log.info("id : {}, testNum : {}", id, testNum);
+        PostEntity postEntity = postRepository.findById(id)
+                .orElseThrow(()-> new RuntimeException("Not Found"));
+        return PostDto.from(postEntity);
+    }
+
+
+    // 👎 KeyGenerator로 생성 
+    // - redis-key : "yoo:post:RequestSample(id=3, title=\xec\x9d\xb4\xea\xb1\xb4 \xeb\xb6\x88\xea\xb0\x80\xeb\x8a\xa5, dummy=dum)"
+    @Cacheable(cacheNames = "post")
+    public PostDto getPostType3(RequestSample requestSample){
+        log.info("requestSample : {}", requestSample);
+        PostEntity postEntity = postRepository.findById(requestSample.getId())
+                .orElseThrow(()-> new RuntimeException("Not Found"));
+        return PostDto.from(postEntity);
+    }
+}
+```
