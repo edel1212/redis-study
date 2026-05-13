@@ -52,13 +52,15 @@ public class RedisCacheHelper {
             if (json == null) return Optional.empty();
             return Optional.of(objectMapper.readValue(json, type));
 
-        } catch (JsonProcessingException e) {
-            log.warn("캐시 역직렬화 실패 — key={}, 캐시 삭제 후 폴백", key, e);
-            safeDelete(key);
+        } catch (DataAccessException e) {
+            // Redis 서버 통신 장애 — 서비스 중단 없이 DB 폴백 유도
+            log.warn("[RedisCacheHelper] Redis 통신 장애. key={}", key, e);
             return Optional.empty();
 
-        } catch (DataAccessException e) {   // Spring Data Redis 의 공통 부모
-            log.warn("Redis 통신 실패 — key={}, 폴백", key, e);
+        } catch (Exception e) {
+            // 역직렬화 실패 — 스키마 변경 등으로 깨진 캐시 자가 치유
+            log.warn("[RedisCacheHelper] 역직렬화 실패. key={} 캐시 삭제 후 재생성 유도", key, e);
+            safeDelete(key); // ← 깨진 캐시 즉시 제거
             return Optional.empty();
         }
     }
@@ -76,20 +78,27 @@ public class RedisCacheHelper {
             String json = objectMapper.writeValueAsString(value);
             redisTemplate.opsForValue().set(key, json, ttl);
 
-        } catch (JsonProcessingException e) {
-            log.warn("캐시 직렬화 실패 — key={}, 저장 건너뜀", key, e);
-
         } catch (DataAccessException e) {
-            log.warn("Redis 통신 실패 — key={}, 저장 건너뜀", key, e);
+            log.warn("[RedisCacheHelper] Redis 통신 장애. 캐시 저장 생략. key={}", key, e);
+
+        } catch (Exception e) {
+            log.warn("[RedisCacheHelper] 직렬화 실패. 캐시 저장 생략. key={}", key, e);
         }
     }
 
-    // 깨진 key 삭제
+    // ----------------------------------------------------------------
+    // private
+    // ----------------------------------------------------------------
+
+    /**
+     * 역직렬화 실패 시 내부에서 깨진 캐시를 조용히 제거한다.
+     * 외부에 예외를 전파하지 않는다.
+     */
     private void safeDelete(String key) {
         try {
             redisTemplate.delete(key);
-        } catch (Exception ignored) {
-            log.warn("깨진 캐시 삭제 실패 — key={}", key);
+        } catch (Exception e) {
+            log.warn("[RedisCacheHelper] 깨진 캐시 삭제 실패. key={}", key, e);
         }
     }
 

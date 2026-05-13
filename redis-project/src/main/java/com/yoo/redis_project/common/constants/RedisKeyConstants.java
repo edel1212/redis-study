@@ -1,0 +1,24 @@
+package com.yoo.redis_project.common.constants;
+
+/**
+ * Redis에서 사용될 키 상수 모음.
+ *
+ * <p>모든 Redis 키는 이 클래스에서 관리한다.
+ * 키 변경 시 이 파일 한 곳만 수정하면 된다.
+ */
+public final class RedisKeyConstants {
+
+    private RedisKeyConstants() {}
+
+    /** 콘서트 상세 캐시. 형식: concert:{concertId} */
+    public static final String CONCERT_DETAIL = "concert:%d";
+
+    /** 콘서트 좌석 목록 캐시. 형식: concert:{concertId}:seats */
+    public static final String CONCERT_SEATS = "concert:%d:seats";
+
+    /** 유저 프로필 캐시. 형식: user:{userId} */
+    public static final String USER_PROFILE = "user:%d";
+
+    // 사용 예시
+    // String key = RedisKeyConstants.CONCERT_DETAIL.formatted(concertId);
+}
