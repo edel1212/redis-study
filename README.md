@@ -147,3 +147,23 @@ appendfsync no        # OS가 알아서 저장 (가장 빠름, 가장 위험)
 - 👎단점 :
   - 파일 크기가 커지고 복구 속도가 느림
   - 서버 성능에 상대적으로 더 영향을 줌 
+
+
+## Cache Aside 패턴
+> 갱신(SET)의 경우 왜 삭제(DELETE)인가?
+> - 삭제 후 다음 읽기 요청에서 최신 DB 값을 다시 적재하는 것이 안전함
+>   -  Cache Aside (Lazy Loading) 의 핵심
+```text
+[읽기]
+호출자
+  → Redis GET
+      ├── 히트  → 반환 (끝)
+      └── 미스  → DB 조회
+                  → Redis SET (TTL 포함)
+                  → 반환
+
+[쓰기 / 갱신]
+호출자
+  → DB UPDATE
+  → Redis DELETE (캐시 무효화)  ← 갱신이 아니라 삭제가 정석
+```
