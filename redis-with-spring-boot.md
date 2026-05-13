@@ -464,6 +464,23 @@ public class RedisTemplateUsingServiceTests extends RedisContainerSupport {
 > - ✏️ [중요] AOP 기반으로 동작
 >   - `@Cacheable`로 지정한 메서드를 메서드에서 호출해도 캐싱되지 않는다 --> ☠️ Self-invocation 함정 - ❌ 프록시 우회로 캐시 동작 안 함 
 
+### 본질 짚기
+> @Cacheable 은 "결과 캐싱" 도구이지, "Redis 활용 도구" 가 아님
+
+- `@Cacheable`만으로 할 수 없는 것들이 명확함 (Redis 기준)
+  - 좌석 1번을 5분 동안 점유하되, 이미 점유 중이면 실패" `(SET NX EX)`
+  - "조회수를 원자적으로 1 증가" `(INCR)`
+  - "대기열에 사용자 추가, 순번 반환" `(ZADD + ZRANK)`
+
+### 선택 기준
+
+| 상황/도구 | 주요 요구사항 | 추천 방식 | 비고 |
+| :--- | :--- | :--- | :--- |
+| **단순 조회 결과 캐싱** | 비싼 DB 조회 결과를 그대로 캐싱하고 싶을 때 | `@Cacheable` | 스프링 추상화 이용, 설정 간편 |
+| **동적 TTL 적용** | 결과 캐싱이지만 동적 TTL(만료 시간) 설정이 필요할 때 | `RedisCacheManager` 또는 `RedisTemplate` | 커스텀 설정 필요 |
+| **특수 자료구조 활용** | 카운터, 락, 대기열, 랭킹 등 Redis 명령어가 필요한 로직 | **RedisTemplate** ⭐ | Redis 전용 기능 활용 |
+| **이벤트 기반 무효화** | 캐시 무효화 시점이 비즈니스 이벤트 기반일 때 (별도 시점) | `RedisTemplate.delete()` | 세밀한 제어 가능 |
+
 ### 추상화 구조
 ```text
 [ 비즈니스 코드 (@Cacheable) ]
@@ -571,7 +588,6 @@ public class RedisConfig {
     Map<String, RedisCacheConfiguration> cacheConfigs = Map.of(
             "post",    typedConfig(PostDto.class,    Duration.ofMinutes(30), objectMapper)
 //                , "orders",   typedConfig(Order.class,   Duration.ofMinutes(5),  objectMapper)
-//                , "products", typedConfig(Product.class, Duration.ofHours(1),    objectMapper)
     );
 
     return RedisCacheManager.builder(connectionFactory)
@@ -904,7 +920,6 @@ disableCachingNullValues 라서 캐시 저장 안 함
    ▼
 DB 가 매번 부담받음 ❌  (캐시가 무용지물)
 ```
-
 
 
 #### 해결책
