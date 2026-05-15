@@ -33,7 +33,7 @@ public class SeatEntity extends BaseTimeEntity {
 
     @Column(nullable = false)
     @Comment("좌석번호")
-    private int seatNumber;
+    private String seatNumber;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -41,7 +41,7 @@ public class SeatEntity extends BaseTimeEntity {
     private SeatStatus status;
 
     @Builder
-    private SeatEntity(ConcertEntity concert, int seatNumber) {
+    private SeatEntity(ConcertEntity concert, String seatNumber) {
         this.concert = concert;
         this.seatNumber = seatNumber;
         this.status = SeatStatus.AVAILABLE;
