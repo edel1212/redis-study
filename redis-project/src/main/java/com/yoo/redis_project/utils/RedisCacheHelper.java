@@ -121,6 +121,23 @@ public class RedisCacheHelper {
         }
     }
 
+    /**
+     * 캐시를 명시적으로 삭제한다.
+     *
+     * <p>DB 갱신 후 캐시 무효화(Cache Aside 패턴)에 사용한다.
+     * Redis 장애 시 예외 없이 WARN 로그만 남긴다 (Fail-Open).
+     *
+     * @param key 삭제할 Redis 키
+     */
+    public void delete(String key) {
+        try {
+            redisTemplate.delete(key);
+        } catch (DataAccessException e) {
+            log.warn("[RedisCacheHelper] 캐시 삭제 실패. key={}", key, e);
+        }
+    }
+
+
     // ----------------------------------------------------------------
     // private
     // ----------------------------------------------------------------
