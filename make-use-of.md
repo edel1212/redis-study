@@ -22,8 +22,8 @@ DB 부하 💀
 ## [K:V]게시글 조회 수
 
 ### Redis Use Flow
-> 키 생성 시 TTL 설정 하여, 불필요한 key가 많아지는 걸 방지 할 수 있다.
-> - SET post:1:views 100 EX 86400    # 24시간 TTL
+> TTL은 주기적 DB에 업데이트하는 시간보다 더 길게 잡는다.
+> - INCR 할 때마다 TTL을 갱신해주는것이 포인트
 ```text
 게시글 조회 요청
         ↓
@@ -32,10 +32,28 @@ Redis에 post:N:views 존재?
 INCR로 증가              MySQL에서 조회수 가져와서
                          Redis에 저장 후 INCR
         ↓
-주기적(스케줄링)으로 MySQL에 반영 - 최근은 Kafka로
+주기적(스케줄링 혹은 kafka)으로 MySQL에 반영 
         ↓
 TTL 만료된 Key는 자동 삭제
 ```
+
+### 왜 Redis로 카운터를 만드는가
+> Redis는 단일 스레드로 명령어를 처리함.
+> - `INCR`은 Read-Modify-Write 가 **원자적**으로 실행되므로 Race Condition이 구조적으로 불가능하다.
+```text
+👎 DB로 카운터 구현 시: 
+  UPDATE concerts SET view_count = view_count + 1 WHERE id = 1
+  → 동시 요청 1000개 → DB 락 경합 → 병목
+  → 인기 콘서트 조회 폭주 시 DB 다운 위험
+
+👎 Redis INCR: 
+  INCR concert:1:views
+  → 단일 스레드 처리 → 락 없음 → 원자적 보장
+  → 초당 수십만 건 처리 가능
+```
+
+
+
 
 ## [SET] 게시글 좋아요 
 > TTL 설정은 필수
