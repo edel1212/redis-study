@@ -47,7 +47,7 @@ public class ConcertQueryServiceImpl implements ConcertQueryService {
             return cached.get();
         }// if
 
-        log.debug("[ConcertQuery] Get Detail 캐시 Miss. concertId={}", key);
+        log.debug("[ConcertQuery] Get Detail 캐시 Miss. DB read concertId={}", key);
 
         // DB 조회
         Optional<ConcertDto> dto = concertRepository.findById(concertId)
@@ -60,13 +60,39 @@ public class ConcertQueryServiceImpl implements ConcertQueryService {
                 new ResourceNotFoundException("콘서트 없음. id=" + concertId));
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<SeatDto> getSeats(Long concertId) {
-        return List.of();
+        // Reids에 저장된 좌석 Key
+        String key = RedisKeyConstants.CONCERT_SEATS.formatted(concertId);
+
+        Optional<List<SeatDto>> cached = cacheHelper.getList(key, SeatDto.class);
+        // cache Hit
+        if(cached.isPresent()){
+            log.debug("[SeatQuery] Get Detail 캐시 Hit. key={}", key);
+            return cached.get();
+        }// if
+
+        log.debug("[SeatQuery] Get Detail 캐시 Miss. DB read concertId={}", key);
+
+        // DB 조회
+        List<SeatDto> seats = seatRepository.findByConcertId(concertId)
+                .stream()
+                .map(SeatDto::from)
+                .toList();
+
+        // cache update
+        if (!seats.isEmpty()) {
+            cacheHelper.set(key, seats, SEATS_TTL);
+        } // if
+
+        return seats;
     }
 
     @Override
     public void evictConcertCache(Long concertId) {
-
+        cacheHelper.delete(RedisKeyConstants.CONCERT_DETAIL.formatted(concertId));
+        cacheHelper.delete(RedisKeyConstants.CONCERT_SEATS.formatted(concertId));
+        log.info("[ConcertQuery] 캐시 무효화 완료. concertId={}", concertId);
     }
 }
