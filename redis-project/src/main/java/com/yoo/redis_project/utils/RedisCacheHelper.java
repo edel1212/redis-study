@@ -2,6 +2,7 @@ package com.yoo.redis_project.utils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.CollectionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -9,6 +10,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -83,6 +85,39 @@ public class RedisCacheHelper {
 
         } catch (Exception e) {
             log.warn("[RedisCacheHelper] 직렬화 실패. 캐시 저장 생략. key={}", key, e);
+        }
+    }
+
+    /**
+     * 캐시에서 리스트를 조회한다.
+     *
+     * <p>제네릭 컬렉션은 {@link Class} 로 역직렬화할 수 없으므로
+     * Jackson {@link com.fasterxml.jackson.databind.type.CollectionType} 을 사용한다.
+     * 역직렬화 실패 시 깨진 캐시를 자동 삭제하고 {@link Optional#empty()} 를 반환한다.
+     *
+     * @param key         Redis 키
+     * @param elementType 리스트 원소 클래스 (예: SeatDto.class)
+     * @param <T>         원소 타입
+     * @return 캐시 히트 시 {@link Optional}로 감싼 리스트, 미스/장애 시 {@link Optional#empty()}
+     */
+    public <T> Optional<List<T>> getList(String key, Class<T> elementType) {
+        try {
+            String json = redisTemplate.opsForValue().get(key);
+            if (json == null) {
+                return Optional.empty();
+            }
+            CollectionType listType = objectMapper.getTypeFactory()
+                    .constructCollectionType(List.class, elementType);
+            return Optional.of(objectMapper.readValue(json, listType));
+
+        } catch (DataAccessException e) {
+            log.warn("[RedisCacheHelper] Redis 통신 장애. key={}", key, e);
+            return Optional.empty();
+
+        } catch (Exception e) {
+            log.warn("[RedisCacheHelper] 역직렬화 실패. key={} 캐시 삭제 후 재생성 유도", key, e);
+            safeDelete(key);
+            return Optional.empty();
         }
     }
 
