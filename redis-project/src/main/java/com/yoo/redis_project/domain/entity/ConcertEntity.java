@@ -41,6 +41,19 @@ public class ConcertEntity extends BaseTimeEntity {
     @Comment("예매 오픈 시각")
     private LocalDateTime bookingOpenAt;
 
+    @Column(name = "views", nullable = false)
+    @Comment("누적 조회수 (배치 동기화 기준)")
+    private long views = 0L;
+
+    /**
+     * 배치 동기화 시 delta 값을 view에 반영한다.
+     *
+     * @param delta 이번 배치 주기의 증분
+     */
+    public void addViews(long delta) {
+        this.views += delta;
+    }
+
     @Builder
     private ConcertEntity(String title, String artist, String venue,
                     LocalDateTime startAt, LocalDateTime bookingOpenAt) {

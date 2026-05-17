@@ -19,6 +19,6 @@ public final class RedisKeyConstants {
     /** 유저 프로필 캐시. 형식: user:{userId} */
     public static final String USER_PROFILE = "user:%d";
 
-    // 사용 예시
-    // String key = RedisKeyConstants.CONCERT_DETAIL.formatted(concertId);
+    /** 콘서트 조회수 증분 카운터. 형식: concert:{concertId}:views:delta */
+    public static final String CONCERT_VIEW_DELTA = "concert:%d:views:delta";
 }

@@ -18,6 +18,7 @@ public class ConcertDto {
     private String venue;
     private LocalDateTime startAt;
     private LocalDateTime bookingOpenAt;
+    private long views;
 
     /** Entity → DTO 변환 */
     public static ConcertDto from(ConcertEntity entity) {
@@ -28,6 +29,7 @@ public class ConcertDto {
                 .venue(entity.getVenue())
                 .startAt(entity.getStartAt())
                 .bookingOpenAt(entity.getBookingOpenAt())
+                .views(entity.getViews())
                 .build();
     }
 }
