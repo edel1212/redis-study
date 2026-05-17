@@ -19,22 +19,27 @@ MySQL에 직접 UPDATE 1000번
 DB 부하 💀
 ```
 
-## [K:V]게시글 조회 수
+## 게시글 조회 수 [INCR 활용]
 
 ### Redis Use Flow
-> TTL은 주기적 DB에 업데이트하는 시간보다 더 길게 잡는다.
-> - INCR 할 때마다 TTL을 갱신해주는것이 포인트
+> 조회용 Key, 증감용 Key를 두고 캐싱 하여 응답
+> - 증감용 Key는 INCR 할 때마다 TTL을 신규 시간 갱신해주는것이 포인트 (메모리 관리)
 ```text
-게시글 조회 요청
-        ↓
-Redis에 post:N:views 존재?
-        ↓ YES                    ↓ NO
-INCR로 증가              MySQL에서 조회수 가져와서
-                         Redis에 저장 후 INCR
-        ↓
-주기적(스케줄링 혹은 kafka)으로 MySQL에 반영 
-        ↓
-TTL 만료된 Key는 자동 삭제
+GET /concerts/{{id}}  [지정 게시물 조회 요청]
+  │
+  ├─ increment({{id}})  [증감용 캐시 증감 및 TTL 갱신]
+  │    └─ INCR concert:1:views:delta
+  │    └─ EXPIRE concert:1:views:delta 3600
+  │
+  └─ getConcertOrThrow(1L) [조회용 캐시 Hit or Miss]
+       ├─ 캐시 히트 → ConcertDto (현재 views) 반환
+       └─ 캐시 미스 → DB 조회 → 캐시 적재 → 반환
+
+--------------------------------------------------------------------
+# 스케줄링 방식일 경우
+[10분마다 - 스케줄러]
+  └─ getAndSet(delta, "0") → 42                             [ 증감용 값을 끄내오며, 값을 0으로 초기화 ]
+  └─ concert.addViews(42)  → Dirty Checking → DB UPDATE     [DB 업데이트 진행]
 ```
 
 ### 왜 Redis로 카운터를 만드는가
@@ -52,6 +57,15 @@ TTL 만료된 Key는 자동 삭제
   → 초당 수십만 건 처리 가능
 ```
 
+### 참고 사항
+- 조회용 key 와 증감용 key 2개를 사용함 그렇기에 key의 배치 주기를 줄인다고 DB의 반영 주기는 짧아지나 조회하는 값 자체는 cache가 Hit되어 예전 값이 보임 이게 알맞는 2개의 TTL 조욜이 필요함
+- 스케줄링 Update 시 로직이 실패할 경우 cache한 증감 값이 사라짐 이에 따른 처리 방안 필요
+  - 방어 로직 (보상 트랜잭션)
+    - 트랜잭션 실패 시 해당 Redis을 rollback 시킴
+    - 분산 환경일 경우 분산 lock을 진행 해야함
+  - kafka를 통한 메세징 큐로 집계 처리
+    - 메시지 큐 방식은 데이터 유실을 0에 가깝게 막아주지만, 인프라 관리 비용과 시스템 복잡도가 크게 증가합니다.
+    - "트래픽이 극단적으로 많고 유실이 절대 없어야 할 때 고려할 고비용/고효율 아키텍처"로 의사 결정
 
 
 
