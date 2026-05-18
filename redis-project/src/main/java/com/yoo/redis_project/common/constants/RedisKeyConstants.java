@@ -21,4 +21,7 @@ public final class RedisKeyConstants {
 
     /** 콘서트 조회수 증분 카운터. 형식: concert:{concertId}:views:delta */
     public static final String CONCERT_VIEW_DELTA = "concert:%d:views:delta";
+
+    /** 좌석 임시 점유 락. 형식: seat:{seatId}:lock */
+    public static final String SEAT_LOCK = "seat:%s:lock"; // ← 추가
 }

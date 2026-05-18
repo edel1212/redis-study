@@ -1,7 +1,10 @@
 package com.yoo.redis_project.init;
 
 import com.yoo.redis_project.domain.entity.ConcertEntity;
+import com.yoo.redis_project.domain.entity.SeatEntity;
+import com.yoo.redis_project.domain.enums.SeatStatus;
 import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -10,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,6 +28,7 @@ import java.util.List;
 public class DataInitializer implements ApplicationRunner {
 
     private final ConcertRepository concertRepository;
+    private final SeatRepository seatRepository;
 
     @Override
     @Transactional
@@ -45,5 +50,22 @@ public class DataInitializer implements ApplicationRunner {
 
         concertRepository.saveAll(concerts);
         log.info("[DataInitializer] 콘서트 초기 데이터 {}건 삽입 완료.", concerts.size());
+
+        /// /////////////
+
+
+        List<SeatEntity> seats = new ArrayList<>();
+        for(ConcertEntity concert : concerts){
+            // 좌석 3개 생성
+            seats = List.of(
+                    SeatEntity.builder().concert(concert).seatNumber("A-1").build(),
+                    SeatEntity.builder().concert(concert).seatNumber("A-2").build(),
+                    SeatEntity.builder().concert(concert).seatNumber("A-3").build()
+            );
+
+            seatRepository.saveAll(seats);
+        }// for
+
+        log.info("[DataInitializer] 콘서트 {}건 + 좌석 {}건 삽입 완료.", concerts.size(), seats.size());
     }
 }
