@@ -1,6 +1,6 @@
 package com.yoo.redis_project.exception;
 
-import com.yoo.redis_project.exception.cusom.ResourceNotFoundException;
+import com.yoo.redis_project.exception.custom.ResourceNotFoundException;
 import com.yoo.redis_project.exception.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

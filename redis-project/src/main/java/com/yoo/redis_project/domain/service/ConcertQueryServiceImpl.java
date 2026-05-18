@@ -6,7 +6,7 @@ import com.yoo.redis_project.domain.dto.ConcertDto;
 import com.yoo.redis_project.domain.dto.SeatDto;
 import com.yoo.redis_project.domain.repository.ConcertRepository;
 import com.yoo.redis_project.domain.repository.SeatRepository;
-import com.yoo.redis_project.exception.cusom.ResourceNotFoundException;
+import com.yoo.redis_project.exception.custom.ResourceNotFoundException;
 import com.yoo.redis_project.utils.RedisCacheHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
