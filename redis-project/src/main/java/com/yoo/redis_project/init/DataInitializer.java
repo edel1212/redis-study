@@ -2,7 +2,6 @@ package com.yoo.redis_project.init;
 
 import com.yoo.redis_project.domain.entity.ConcertEntity;
 import com.yoo.redis_project.domain.entity.SeatEntity;
-import com.yoo.redis_project.domain.enums.SeatStatus;
 import com.yoo.redis_project.domain.repository.ConcertRepository;
 import com.yoo.redis_project.domain.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +44,40 @@ public class DataInitializer implements ApplicationRunner {
                         .venue("잠실 올림픽 경기장")
                         .startAt(LocalDateTime.of(2026, 8, 1, 19, 0))
                         .bookingOpenAt(LocalDateTime.of(2026, 6, 1, 10, 0))
+                        .build(),
+
+                ConcertEntity.builder()
+                        .title("2026 흑곰 콘서트")
+                        .artist("흑곰")
+                        .venue("세종 올림픽 경기장")
+                        .startAt(LocalDateTime.of(2026, 6, 1, 10, 10))
+                        .bookingOpenAt(LocalDateTime.of(2026, 10, 1, 11, 30)) // 기존 데이터 유지
+                        .build(),
+
+                // --- 여기서부터 추가된 데이터 ---
+
+                ConcertEntity.builder()
+                        .title("2026 DAY6 연말 단독 콘서트")
+                        .artist("DAY6")
+                        .venue("KSPO DOME")
+                        .startAt(LocalDateTime.of(2026, 12, 24, 19, 30))
+                        .bookingOpenAt(LocalDateTime.of(2026, 11, 20, 20, 0))
+                        .build(),
+
+                ConcertEntity.builder()
+                        .title("2026 성시경의 축가")
+                        .artist("성시경")
+                        .venue("연세대학교 노천극장")
+                        .startAt(LocalDateTime.of(2026, 5, 20, 19, 0))
+                        .bookingOpenAt(LocalDateTime.of(2026, 4, 15, 20, 0))
+                        .build(),
+
+                ConcertEntity.builder()
+                        .title("2026 aespa 2nd World Tour in Seoul")
+                        .artist("aespa")
+                        .venue("고척 스카이돔")
+                        .startAt(LocalDateTime.of(2026, 9, 15, 18, 0))
+                        .bookingOpenAt(LocalDateTime.of(2026, 8, 10, 20, 0))
                         .build()
         );
 
