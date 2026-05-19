@@ -10,6 +10,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -135,6 +137,49 @@ public class RedisCacheHelper {
         } catch (DataAccessException e) {
             log.warn("[RedisCacheHelper] 캐시 삭제 실패. key={}", key, e);
         }
+    }
+
+    /**
+     * 여러 키의 값을 일괄 조회하여 지정 타입으로 역직렬화한다.
+     * <p>MGET으로 1회 왕복 조회하며, 역직렬화 실패 항목은 null로 반환한다.</p>
+     *
+     * @param keys  조회할 Redis 키 목록
+     * @param clazz 역직렬화 대상 타입
+     * @return      키 순서에 대응하는 결과 리스트. cache miss 또는 역직렬화 실패 시 해당 index는 null
+     */
+    public <T> List<T> multiGet(List<String> keys, Class<T> clazz) {
+        List<String> values;
+        try {
+            values = redisTemplate.opsForValue().multiGet(keys);
+        } catch (Exception e) {
+            log.warn("Redis MGET 실패: {}", e.getMessage());
+            return Collections.nCopies(keys.size(), null);
+        } // try - catch
+
+        // 저장된 값이 없을 경우 - null로 채워진 배열 반환
+        if (values == null) {
+            return Collections.nCopies(keys.size(), null);
+        } // if
+
+        List<T> result = new ArrayList<>(values.size());
+        for (int i = 0; i < values.size(); i++) {
+            String raw = values.get(i);
+            String key = keys.get(i);
+
+            if (raw == null) {
+                result.add(null);
+                continue;
+            } // if
+
+            try {
+                result.add(objectMapper.readValue(raw, clazz));
+            } catch (JsonProcessingException e) {
+                log.warn("[RedisCacheHelper] 역직렬화 실패. key={} 삭제 후 캐시 미스 처리", key);
+                safeDelete(key); // 깨진 캐시 자가 치유
+                result.add(null);
+            } // try - catch
+        } // for
+        return result;
     }
 
 
