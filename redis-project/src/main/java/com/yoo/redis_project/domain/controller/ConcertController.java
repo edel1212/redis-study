@@ -1,6 +1,7 @@
 package com.yoo.redis_project.domain.controller;
 
 import com.yoo.redis_project.domain.dto.ConcertDto;
+import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
 import com.yoo.redis_project.domain.dto.ConcertRankingEntryResponse;
 import com.yoo.redis_project.domain.dto.SeatDto;
 import com.yoo.redis_project.domain.service.ConcertQueryService;
@@ -42,9 +43,8 @@ public class ConcertController {
     }
 
     @GetMapping("/ranking")
-    public ResponseEntity<List<ConcertRankingEntryResponse>> getRanking(
-            // 기본값 10
+    public ResponseEntity<List<ConcertRankingDetailResponse>> getRanking(
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(rankingService.getTopRanking(size));
+        return ResponseEntity.ok(rankingService.getTopRankingWithDetail(size));
     }
 }
