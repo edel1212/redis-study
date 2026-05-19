@@ -1,5 +1,6 @@
 package com.yoo.redis_project.domain.service;
 
+import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
 import com.yoo.redis_project.domain.dto.ConcertRankingEntryResponse;
 
 import java.util.List;
@@ -23,6 +24,17 @@ public interface ConcertRankingService {
      * @return        순위 포함 랭킹 목록. 데이터 없으면 빈 리스트 반환
      */
     List<ConcertRankingEntryResponse> getTopRanking(int size);
+
+
+    /**
+     * 조회수 기준 상위 N개 콘서트 랭킹 + 상세 정보를 반환한다.
+     * <p>MGET으로 캐시된 콘서트 상세를 일괄 조회하며,
+     * cache miss 항목은 DB에서 개별 조회 후 캐시에 저장한다.</p>
+     *
+     * @param size 조회할 상위 랭킹 수 (1 이상)
+     * @return     랭킹 + 상세 병합 목록. 데이터 없으면 빈 리스트 반환
+     */
+    List<ConcertRankingDetailResponse> getTopRankingWithDetail(int size);
 
     /**
      * 특정 콘서트의 현재 랭킹 순위를 반환한다.

@@ -1,6 +1,7 @@
 package com.yoo.redis_project.domain.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
+import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
 import com.yoo.redis_project.domain.dto.ConcertRankingEntryResponse;
 import com.yoo.redis_project.domain.repository.ConcertRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,11 @@ public class ConcertRankingServiceImpl implements ConcertRankingService{
     @Override
     public void incrementScore(Long concertId) {
         String key = RedisKeyConstants.CONCERT_RANKING;
+
+        // 값이 없을 경우 DB 조회 후 init (트래픽에 따라 - 스케줄링 or bootRun 방식으로 변경)
+        initRankingScoreIfAbsent(concertId);
+
+        // 값 증감
         redisTemplate.opsForZSet().incrementScore(
                                                     // key
                                                     key,
@@ -60,6 +66,20 @@ public class ConcertRankingServiceImpl implements ConcertRankingService{
         } // for
 
         return result;
+    }
+
+    @Override
+    public List<ConcertRankingDetailResponse> getTopRankingWithDetail(int size) {
+
+        // 1. cache 된 랭킹 조회
+        List<ConcertRankingEntryResponse> entries = getTopRanking(size);
+
+        // 랭킹 정보가 없으면 아무것도 없이 반환
+        if (entries.isEmpty()) return Collections.emptyList();
+
+        //
+
+        return List.of();
     }
 
     @Override

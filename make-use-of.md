@@ -115,42 +115,34 @@ GET /concerts/{{id}}  [지정 게시물 조회 요청]
 | **적합한 상황** | 단순 점유 (예: 좌석 임시 점유) | 결제, 재고 차감 등 크리티컬한 비즈니스 구간 |
 
 
-## 게시글 목록 조회 [MGET 활용]
-// TODO : Sorted set 과 엮어서 진행
+## [Sorted Set]  실시간 랭킹
 
-
-
-## [SET] 게시글 좋아요 
-> TTL 설정은 필수
 ### Redis Use Flow
 ```text
-유저 클릭
-    ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│  분기 처리                                                           │
-│  좋아요 클릭 → SADD post:1:likes "user:1"                          │
-│  싫어요 클릭 → SREM post:1:likes "user:1"                          │
-└─────────────────────────────────────────────────────────────────────┘
-         ↓                                          ↓
-┌─────────────────────┐                  ┌─────────────────────┐
-│  Kafka               │                  │  Kafka               │
-│  topic: like-events  │                  │  topic: like-events  │
-│  (INSERT 이벤트)     │                  │  (DELETE 이벤트)     │
-└─────────────────────┘                  └─────────────────────┘
-         ↓                                          ↓
-┌─────────────────────┐                  ┌─────────────────────┐
-│  Kafka Consumer      │                  │  Kafka Consumer      │
-│  500개씩 배치 수신   │                  │  500개씩 배치 수신   │
-└─────────────────────┘                  └─────────────────────┘
-         ↓                                          ↓
-┌─────────────────────┐                  ┌─────────────────────┐
-│  MySQL               │                  │  MySQL               │
-│  Bulk Insert         │                  │  Bulk Delete         │
-└─────────────────────┘                  └─────────────────────┘
+[1단계] 콘서트 상세 조회 → 조회수 + 랭킹 자동 반영
+  GET /concerts/1
+  └─ 조회수 증분: INCR concert:1:views:delta
+  └─ 랭킹 최초 진입: ZSCORE null → DB views로 ZADD 초기화
+  └─ 랭킹 점수 증가: ZINCRBY concert:ranking 1 "1"
+
+[2단계] 인기 콘서트 랭킹 조회
+  GET /concerts/ranking?size=10
+  └─ ZRANGE concert:ranking 0 9 REV WITHSCORES
+  └─ 응답: [ { concertId, score, rank }, ... ]
+
+[3단계] 랭킹 → 콘서트 상세 일괄 조회 (4-3-3에서 구현)
+  랭킹 상위 ID 목록 추출
+  └─ MGET concert:1, concert:2, concert:3 ...
+  └─ 콘서트 상세 정보 일괄 반환
+
+[4단계] 조회수 DB 동기화 (배치, 10분 주기)
+  @Scheduled fixedDelay=10분
+  └─ GETSET concert:{id}:views:delta → "0"
+  └─ delta > 0 → DB views 컬럼 반영
+  └─ 랭킹 score는 DB 동기화 없음 (Redis 단독 관리)
 ```
 
-
-## [Sorted Set]  실시간 랭킹
+### Redis Use Flow - Kafka 활용
 ```text
 [ 점수 갱신 흐름 ]
 
@@ -203,6 +195,59 @@ Scheduler 실행
 │  RENAME game:ranking:new game:ranking   │  ← 무중단
 └─────────────────────────────────────────┘
 ```
+
+
+## 게시글 목록 조회 [MGET 활용]
+
+### 풀려는 문제 사항
+> 랭킹 조회 시 Reids에 저장된 랭킹 정보에는 상세 정보가 저장되어 있지 않음
+> - 👎 랭킹 ID마다 GET 1회씩 Redis에 조회 하여 값을 채워 넣는 방식은 좋지 못함
+```text
+GET /concerts/ranking?size=10
+
+현재 응답 (Reids에 저장된 ZSort 값):
+[ { concertId: 1, score: 150, rank: 1 },
+  { concertId: 3, score: 120, rank: 2 } ]
+
+원하는 응답:
+[ { concertId: 1, title: "IU 콘서트", artist: "IU", score: 150, rank: 1 },
+  { concertId: 3, title: "BTS 월드투어", artist: "BTS", score: 120, rank: 2 } ]
+```
+
+
+
+
+## [SET] 게시글 좋아요 
+> TTL 설정은 필수
+### Redis Use Flow
+```text
+유저 클릭
+    ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  분기 처리                                                           │
+│  좋아요 클릭 → SADD post:1:likes "user:1"                          │
+│  싫어요 클릭 → SREM post:1:likes "user:1"                          │
+└─────────────────────────────────────────────────────────────────────┘
+         ↓                                          ↓
+┌─────────────────────┐                  ┌─────────────────────┐
+│  Kafka               │                  │  Kafka               │
+│  topic: like-events  │                  │  topic: like-events  │
+│  (INSERT 이벤트)     │                  │  (DELETE 이벤트)     │
+└─────────────────────┘                  └─────────────────────┘
+         ↓                                          ↓
+┌─────────────────────┐                  ┌─────────────────────┐
+│  Kafka Consumer      │                  │  Kafka Consumer      │
+│  500개씩 배치 수신   │                  │  500개씩 배치 수신   │
+└─────────────────────┘                  └─────────────────────┘
+         ↓                                          ↓
+┌─────────────────────┐                  ┌─────────────────────┐
+│  MySQL               │                  │  MySQL               │
+│  Bulk Insert         │                  │  Bulk Delete         │
+└─────────────────────┘                  └─────────────────────┘
+```
+
+
+
 
 ## [Sorted Set] 예매 대기열 (티켓팅)
 ```text
