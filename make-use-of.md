@@ -143,6 +143,7 @@ GET /concerts/{{id}}  [지정 게시물 조회 요청]
 ```
 
 ### Redis Use Flow - Kafka 활용
+> 점수 기반
 ```text
 [ 점수 갱신 흐름 ]
 
@@ -197,7 +198,7 @@ Scheduler 실행
 ```
 
 
-## 게시글 목록 조회 [MGET 활용]
+## 콘서트 랭킹 목록 [MGET 활용]
 
 ### 풀려는 문제 사항
 > 랭킹 조회 시 Reids에 저장된 랭킹 정보에는 상세 정보가 저장되어 있지 않음
@@ -214,8 +215,21 @@ GET /concerts/ranking?size=10
   { concertId: 3, title: "BTS 월드투어", artist: "BTS", score: 120, rank: 2 } ]
 ```
 
+### Redis Use Flow
+```text
+GET /concerts/ranking?size=10
 
+[1단계] 콘서트 랭킹 조회 → 조회 목록 내 콘서트 ID들을 모아 캐싱된 콘서트 상세정보를 불러옴
 
+[2단계] Mget을 사용해서 가져온 콘서트 정보를 기반으로 응답 데이터 생성
+  └─ 케시 Hit 일 경우 DTO 변환 저장
+  └─ 케시 Miss 일 캐싱 저장 후 DTO 반환
+  └─ 존재하지 않는 콘서트 상세 정보일 경우 랭킹 목록에서 제외
+
+응답:
+[ { concertId: 1, title: "IU 콘서트", artist: "IU", score: 150, rank: 1 },
+  { concertId: 3, title: "BTS 월드투어", artist: "BTS", score: 120, rank: 2 } ]
+```
 
 ## [SET] 게시글 좋아요 
 > TTL 설정은 필수
