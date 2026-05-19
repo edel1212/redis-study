@@ -23,5 +23,9 @@ public final class RedisKeyConstants {
     public static final String CONCERT_VIEW_DELTA = "concert:%d:views:delta";
 
     /** 좌석 임시 점유 락. 형식: seat:{seatId}:lock */
-    public static final String SEAT_LOCK = "seat:%s:lock"; // ← 추가
+    public static final String SEAT_LOCK = "seat:%s:lock";
+
+    /** 콘서트 랭킹. 고정키 형식: concert:ranking */
+    public static final String CONCERT_RANKING = "concert:ranking";
+
 }

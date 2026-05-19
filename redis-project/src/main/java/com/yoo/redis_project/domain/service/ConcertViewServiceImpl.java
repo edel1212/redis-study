@@ -20,8 +20,12 @@ public class ConcertViewServiceImpl implements ConcertViewService{
 
     private static final Duration DELTA_TTL = Duration.ofHours(1);
 
+    // Redis
     private final StringRedisTemplate stringRedisTemplate;
+    // concert
     private final ConcertRepository concertRepository;
+    // ranking
+    private final ConcertRankingService rankingService;
 
 
     @Override
@@ -33,6 +37,10 @@ public class ConcertViewServiceImpl implements ConcertViewService{
             stringRedisTemplate.opsForValue().increment(key);
             // 만료 시간 갱신
             stringRedisTemplate.expire(key, DELTA_TTL);
+
+            // 랭킹 값 증가
+            rankingService.incrementScore(concertId);
+            
         } catch (DataAccessException e){
             // 조회수 누락은 허용 — 서비스 중단 없이 Fail-Open
             log.warn("[ConcertView] 조회수 증가 실패. concertId={}", concertId, e);
