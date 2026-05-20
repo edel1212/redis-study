@@ -13,10 +13,13 @@ public interface ConcertViewService {
      *
      * <p>Redis delta 키에 INCR 후 TTL을 연장한다.
      * Redis 장애 시 조회수 누락은 허용한다 (Fail-Open).
+     * </p>
+     * <p>같은 유저가 같은 날 여러 번 조회해도 1회만 카운트된다.</p>
      *
+     * @param userId    조회한 유저 ID (어뷰징 방지용)
      * @param concertId 조회수를 증가시킬 콘서트 ID
      */
-    void increment(Long concertId);
+    void increment(Long concertId, Long userId);
 
     /**
      * 모든 콘서트의 조회수 delta를 DB에 동기화한다.

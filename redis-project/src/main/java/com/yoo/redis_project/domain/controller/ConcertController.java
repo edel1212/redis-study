@@ -22,12 +22,13 @@ public class ConcertController {
     private final ConcertViewService concertViewService;
     private final ConcertRankingService rankingService;
 
+    // 실무에서는 userId를 쿼리 파라미터가 아닌 인증 토큰(SecurityContext) 에서 추출
     @GetMapping("/{concertId}")
-    public ResponseEntity<ConcertDto> getConcert(@PathVariable Long concertId) {
+    public ResponseEntity<ConcertDto> getConcert(@PathVariable Long concertId, @RequestParam Long userId) {
         // 콘서트 정보 조회
         ConcertDto concert = concertQueryService.getConcert(concertId);
         // 조회 수 증가
-        concertViewService.increment(concertId);
+        concertViewService.increment(concertId, userId);
         return ResponseEntity.ok(concert);
     }
 

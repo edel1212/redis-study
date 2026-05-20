@@ -28,4 +28,6 @@ public final class RedisKeyConstants {
     /** 콘서트 랭킹. 고정키 형식: concert:ranking */
     public static final String CONCERT_RANKING = "concert:ranking";
 
+    /** 지정 날짜 콘서트 조회한 사람. 고정키 형식: concert:{concertId}:viewers:{yyyyMMdd}  */
+    public static final String CONCERT_DAILY_VIEWERS = "concert:%d:viewers:%s";
 }

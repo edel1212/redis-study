@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -19,6 +20,7 @@ import java.util.List;
 public class ConcertViewServiceImpl implements ConcertViewService{
 
     private static final Duration DELTA_TTL = Duration.ofHours(1);
+    private static final Duration VIEWERS_TTL    = Duration.ofDays(2);
 
     // Redis
     private final StringRedisTemplate stringRedisTemplate;
@@ -29,11 +31,28 @@ public class ConcertViewServiceImpl implements ConcertViewService{
 
 
     @Override
-    public void increment(Long concertId) {
+    public void increment(Long concertId, Long userId) {
+        // 조회수 증감 key
         String key = RedisKeyConstants.CONCERT_VIEW_DELTA.formatted(concertId);
+        // 날짜별 조회 Set Key
+        String viewersKey = RedisKeyConstants.CONCERT_DAILY_VIEWERS.formatted(concertId, LocalDate.now().toString());
 
         try {
-            // 해당 key  값 증가
+
+            // 어뷰징 조회 수 추가인지 확인 로직
+            Boolean isCheck = stringRedisTemplate.opsForSet().isMember(viewersKey, userId);
+
+            // 이미 조회한 사용자이기에 skip
+            if(Boolean.TRUE.equals(isCheck)){
+                log.info("이미 조화한 사용자  count 및 ranking 증감 X");
+                return;
+            } // if
+
+            // 어뷰징 방지 사용자 추가 및 TTL 설정
+            stringRedisTemplate.opsForSet().add(viewersKey, String.valueOf(userId));
+            stringRedisTemplate.expire(viewersKey, VIEWERS_TTL);
+
+            // 조회 수 key 값 증가
             stringRedisTemplate.opsForValue().increment(key);
             // 만료 시간 갱신
             stringRedisTemplate.expire(key, DELTA_TTL);
