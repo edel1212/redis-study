@@ -30,4 +30,13 @@ public final class RedisKeyConstants {
 
     /** 지정 날짜 콘서트 조회한 사람. 고정키 형식: concert:{concertId}:viewers:{yyyyMMdd}  */
     public static final String CONCERT_DAILY_VIEWERS = "concert:%d:viewers:%s";
+
+    // virtual room
+
+    /** 가상 Room 대기열 등록 "시간 기준 sorted set" 방식. 형식: waiting:concert:{concertId} {timestamp} "{userId}"  */
+    public static final String WAITING_QUEUE   = "waiting:concert:%d";
+    /** 지정 콘서트 내 입장 가능한 사람 목록 "set" 방식. 형식: waiting:concert:{concertId}:entered  */
+    public static final String WAITING_ENTERED = "waiting:concert:%d:entered";
+    /** 좌석 점유 가능 인증 토큰 "set" 방식. 형식: waiting:concert:{id}:token:{userId} "{uuid}" EX 300  */
+    public static final String WAITING_TOKEN   = "waiting:concert:%d:token:%d";
 }
