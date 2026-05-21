@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 @Slf4j
@@ -39,18 +41,16 @@ public class ConcertViewServiceImpl implements ConcertViewService{
 
         try {
 
-            // 어뷰징 조회 수 추가인지 확인 로직
-            Boolean isCheck = stringRedisTemplate.opsForSet().isMember(viewersKey, userId);
-
+            // 어뷰징 방지 사용자 추가( 저장 시 값을 기준으로 존재 유무 체크 )
+            Long added = stringRedisTemplate.opsForSet().add(viewersKey, String.valueOf(userId));
             // 이미 조회한 사용자이기에 skip
-            if(Boolean.TRUE.equals(isCheck)){
+            if(added == null || added == 0L){
                 log.info("이미 조화한 사용자  count 및 ranking 증감 X");
                 return;
-            } // if
-
-            // 어뷰징 방지 사용자 추가 및 TTL 설정
-            stringRedisTemplate.opsForSet().add(viewersKey, String.valueOf(userId));
-            stringRedisTemplate.expire(viewersKey, VIEWERS_TTL);
+            } //if
+            // TTL 설정 (다음날 00시 00분까지)
+            Date midnightDate = Date.from(LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant());
+            stringRedisTemplate.expireAt(viewersKey, midnightDate);
 
             // 조회 수 key 값 증가
             stringRedisTemplate.opsForValue().increment(key);
@@ -82,7 +82,7 @@ public class ConcertViewServiceImpl implements ConcertViewService{
 
             try {
                 // getAndSet: delta 읽기 + 0으로 리셋 (원자적)
-                String previous = stringRedisTemplate.opsForValue().getAndSet(key, "0");
+                String previous = stringRedisTemplate.opsForValue().get(key);
 
                 // Redis에 저장된 값이 없거나 0일 경우 skips
                 if (previous == null || previous.equals("0")) {
@@ -92,6 +92,10 @@ public class ConcertViewServiceImpl implements ConcertViewService{
                 // [db update] 조회수에 캐싱 값을 더해줌
                 long delta = Long.parseLong(previous);
                 concert.addViews(delta);
+
+                // 💡 기존 getAndSet 방식 ->  DB 업데이트가 성공하면 Redis에서 키를 완전히 삭제 하는 방식으로 변경
+                // Cache Aside 방식 채택
+                stringRedisTemplate.delete(key);
 
                 log.info("[ConcertView] 조회수 동기화. concertId={} delta={} result={}", concert.getId(), delta, concert.getVenue());
 
