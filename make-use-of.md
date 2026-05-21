@@ -231,6 +231,19 @@ GET /concerts/ranking?size=10
   { concertId: 3, title: "BTS 월드투어", artist: "BTS", score: 120, rank: 2 } ]
 ```
 
+## 중복 조회 확인 [SET 활용]
+> 중복이 불가능하다는 Set의 구조를 사용하여 조회 수 증감 방지
+> userId의 경우 실개발 시에는 security-context를 사용하여 처리
+### Redis Use Flow
+```text
+GET /concerts/{id}?userId=1
+
+일별 중복 조회 체크 → SADD로 체크 + 등록 동시 처리 
+  └─ 사용 Key 형식 "concert:{concertId}:viewers:{yyyyMMdd}" 저장되는 valued에는 사용자 식별ID 저장
+  └─ SADD 반환값 0 (이미 존재) → 조회수/랭킹 증가 스킵, 콘서트 상세만 반환
+  └─ SADD 반환값 1 (신규 등록) → EXPIREAT 당일 자정 만료 설정 후 다음 단계
+```
+
 ## [SET] 게시글 좋아요 
 > TTL 설정은 필수
 ### Redis Use Flow
