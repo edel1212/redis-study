@@ -53,4 +53,15 @@ public class WaitingResponse {
                 .status(WaitingStatus.NOT_IN_QUEUE)
                 .build();
     }
+
+    /**
+     * token 시간 만료로 인한 응답
+     *
+     * @return token 시간 만료
+     */
+    public static WaitingResponse expired() {
+        return WaitingResponse.builder()
+                .status(WaitingStatus.NOT_IN_QUEUE)
+                .build();
+    }
 }

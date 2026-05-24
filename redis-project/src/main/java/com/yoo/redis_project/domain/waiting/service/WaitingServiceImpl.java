@@ -2,6 +2,7 @@ package com.yoo.redis_project.domain.waiting.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
 import com.yoo.redis_project.domain.waiting.dto.EnqueueResult;
+import com.yoo.redis_project.domain.waiting.dto.WaitingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -45,10 +46,10 @@ public class WaitingServiceImpl implements WaitingService {
                 return EnqueueResult.entered(token);
             }//if
 
-            // 토큰 만료 → 입장은 했지만 토큰 없음 (EXPIRED 상태)
-            // 학습 범위에서는 재발급 없이 만료 안내
-            log.warn("입장 토큰 만료 concertId={}, userId={}", concertId, userId);
-            return EnqueueResult.entered(null);
+            // token이 만료 됐을 경우 entered 대상에서 제거
+            redisTemplate.opsForSet().remove(enteredKey, userIdStr);
+            log.info("토큰 만료로 entered 제거 concertId={}, userId={}", concertId, userId);
+            return EnqueueResult.expired();
         } // if
 
         // 1. 가상 룸 입장 - 대기열 등록
@@ -74,5 +75,42 @@ public class WaitingServiceImpl implements WaitingService {
 
         // 이미 존재하는 대기열 사용자일 경우
         return EnqueueResult.existingWaiting(rank.intValue() + 1);
+    }
+
+    @Override
+    public WaitingResponse getPosition(Long concertId, Long userId) {
+        // Long -> String
+        String userIdStr = String.valueOf(userId);
+
+        // 콘서트 입장 가능자 확인 Key
+        String enteredKey = RedisKeyConstants.WAITING_ENTERED.formatted(concertId);
+        // 콘서트 대기열 key
+        String queueKey = RedisKeyConstants.WAITING_QUEUE.formatted(concertId);
+        // 입장 가능자 Key 목록
+        String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
+
+        // 입장 가능자인지 확인
+        Boolean isEntered = redisTemplate.opsForSet().isMember(enteredKey, userIdStr);
+        if(Boolean.TRUE.equals(isEntered)){
+            // token 정보를 가져옴
+            String token = redisTemplate.opsForValue().get(tokenKey);
+            // key가 존재할 경우 응답
+            if(token != null) return WaitingResponse.entered(token);
+
+            // token이 만료 됐을 경우 entered 대상에서 제거
+            redisTemplate.opsForSet().remove(enteredKey, userIdStr);
+            log.info("토큰 만료로 entered 제거 concertId={}, userId={}", concertId, userId);
+            return EnqueueResult.expired().getResponse();
+        } // if
+
+        Long rank = redisTemplate.opsForZSet().rank(queueKey, userIdStr);
+
+        // 대기열에 등록되지 않은 사용자임
+        if (rank == null) {
+            // 자동으로 사용자를 등록해주지 않는 이유는 API를 완벽하게 분리하여 의도를 명확하게 하기 위함
+            return WaitingResponse.notInQueue();
+        } // if
+
+        return WaitingResponse.waiting(rank.intValue() + 1);
     }
 }

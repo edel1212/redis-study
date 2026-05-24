@@ -28,4 +28,14 @@ public class WaitingController {
         return ResponseEntity.status(status).body(result.getResponse());
     }
 
+    /**
+     * GET /concerts/{concertId}/waiting/position?userId=1
+     * 대기열 내 현재 순번 조회. 프론트가 3~5초 간격으로 폴링.
+     */
+    @GetMapping("/position")
+    public ResponseEntity<WaitingResponse> getPosition(@PathVariable Long concertId,
+                                                         @RequestParam Long userId) {
+
+        return ResponseEntity.ok(waitingService.getPosition(concertId, userId));
+    }
 }

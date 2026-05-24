@@ -54,4 +54,16 @@ public class EnqueueResult {
                 .created(false)
                 .build();
     }
+
+    /**
+     * 토큰 시간 만료
+     *
+     * @return 4xx 응답
+     */
+    public static EnqueueResult expired() {
+        return EnqueueResult.builder()
+                .response(WaitingResponse.expired())
+                .created(false)
+                .build();
+    }
 }
