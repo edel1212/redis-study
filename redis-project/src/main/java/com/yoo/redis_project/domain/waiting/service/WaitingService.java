@@ -26,4 +26,22 @@ public interface WaitingService {
      * @return          현재 상태 (WAITING / ENTERED / NOT_IN_QUEUE)
      */
     WaitingResponse getPosition(Long concertId, Long userId);
+
+    /**
+     * 대기열에서 상위 유저를 입장시킨다. (스케줄러 전용)
+     * <p>만료자 정리 후 빈 자리만큼 ZPOPMIN으로 꺼내
+     * 토큰 발급 + entered 등록을 수행한다.</p>
+     *
+     * @param concertId 대기열 대상 콘서트 ID
+     */
+    void processEntry(Long concertId);
+
+    /**
+     * 가상 공간 입장 자리를 반환한다.
+     * <p>좌석 최종 예약 성공 시 호출</p>
+     *
+     * @param concertId 콘서트 ID
+     * @param userId    유저 ID
+     */
+    void releaseEntry(Long concertId, Long userId);
 }

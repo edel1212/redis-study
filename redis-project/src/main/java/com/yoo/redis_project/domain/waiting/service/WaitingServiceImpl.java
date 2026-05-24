@@ -6,9 +6,12 @@ import com.yoo.redis_project.domain.waiting.dto.WaitingResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -19,6 +22,10 @@ public class WaitingServiceImpl implements WaitingService {
     private static final Duration QUEUE_TTL   = Duration.ofHours(2);
     // 입장 허용 TTL
     private static final Duration ENTERED_TTL = Duration.ofHours(2);
+    // 토큰 시간 할당 (실제는 5분이지만 어유있는 시간 할당)
+    private static final Duration TOKEN_TTL = Duration.ofMinutes(6);
+    // 최대 입장 가능 사용자
+    private static final int MAX_ENTRY_COUNT = 50;
 
     private final StringRedisTemplate redisTemplate;
 
@@ -112,5 +119,87 @@ public class WaitingServiceImpl implements WaitingService {
         } // if
 
         return WaitingResponse.waiting(rank.intValue() + 1);
+    }
+
+    @Override
+    public void processEntry(Long concertId) {
+        // 입장 가능 사용자
+        String enteredKey = RedisKeyConstants.WAITING_ENTERED.formatted(concertId);
+        // 대기열 사용자
+        String queueKey   = RedisKeyConstants.WAITING_QUEUE.formatted(concertId);
+
+        // Step 1. token이 만료된 entered 사용자 정리 (TODO : 추후 entered 저장 방식을 set -> string + TTL로 변경 예정)
+        cleanupExpiredEntries(concertId, enteredKey);
+
+        // Step 2. 빈자리 계산
+        // 입장 사용자 수
+        Long currentEnteredCount = redisTemplate.opsForSet().size(enteredKey);
+        long currentEntered = (currentEnteredCount != null) ? currentEnteredCount : 0L;
+        // 입장이 가능한 사용자 수
+        long available = MAX_ENTRY_COUNT - currentEntered;
+
+        // 입장처리 가능한 사용자가 없음 (실제 좌석 예매 페이지 이동 공간 부족)
+        if (available <= 0) return;
+
+        // Step 3. 자리가 있을 경우 대기욜 사용자를 빼서 압장 사용자 등록
+        Set<ZSetOperations.TypedTuple<String>> popped = redisTemplate.opsForZSet().popMin(queueKey, available);
+        // 대기열 사용자가 없을 경우 skip
+        if(popped == null || popped.isEmpty()) return;
+
+        // 대기열 사용자에게 토큰 할당
+        for (ZSetOperations.TypedTuple<String> tuple : popped) {
+            String userId = tuple.getValue();
+            // 예외 처리
+            if (userId == null) continue;
+
+            // 토큰 생성 및 할당
+            String token = UUID.randomUUID().toString();
+            String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(
+                    concertId, Long.parseLong(userId));
+
+            // 토큰 먼저 → entered 나중 (race condition 방지)
+            redisTemplate.opsForValue().set(tokenKey, token, TOKEN_TTL);
+            redisTemplate.opsForSet().add(enteredKey, userId);
+        } // for
+
+        // entered 키 TTL 설정 (TODO : 추 후 제거 예정 - 로직 변경)
+        redisTemplate.expire(enteredKey, ENTERED_TTL);
+
+        log.info("[스케줄링] : 입장 처리 완료 concertId={}, 입장 인원={}", concertId, popped.size());
+    }
+
+    @Override
+    public void releaseEntry(Long concertId, Long userId) {
+
+    }
+
+    /**
+     * 입장 가능하나 토큰이 만료 됐을 경우 처리
+     * <p>추후 해당 로직 제거 - 자료구조 변경 진행</p>
+     * ! TODO : 제거 예정
+     *
+     * @param concertId the 콘서트 아이디
+     * @param enteredKey 입장가능자 확인 key
+     */
+    private void cleanupExpiredEntries(Long concertId, String enteredKey) {
+
+        Set<String> enteredMembers = redisTemplate.opsForSet().members(enteredKey);
+        // 입장 가능 대상 목록이 없을 경우 skip
+        if (enteredMembers == null || enteredMembers.isEmpty()) return;
+
+        // 입장 가능자 loop
+        for (String userId : enteredMembers) {
+            // 토큰 조회
+            String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(
+                    concertId, Long.parseLong(userId));
+            String token = redisTemplate.opsForValue().get(tokenKey);
+
+            // 입장 가능자이지만 만료이 만료됐을 경우 정리 처리
+            // TODO - 추후 해다 방식 변경 예정 Set 자체는 TTL설정이 되지 않으므로 현방향 유지 자료구조 변경 예정
+            if (token == null) {
+                redisTemplate.opsForSet().remove(enteredKey, userId);
+                log.info("만료자 정리 concertId={}, userId={}", concertId, userId);
+            } // if
+        } // for
     }
 }
