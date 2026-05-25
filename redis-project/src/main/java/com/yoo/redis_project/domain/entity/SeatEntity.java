@@ -2,6 +2,7 @@ package com.yoo.redis_project.domain.entity;
 
 import com.yoo.redis_project.common.entity.BaseTimeEntity;
 import com.yoo.redis_project.domain.enums.SeatStatus;
+import com.yoo.redis_project.exception.custom.BadRequestException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -56,7 +57,10 @@ public class SeatEntity extends BaseTimeEntity {
      * @throws IllegalStateException 이미 판매된 좌석인 경우
      */
     public void markAsSold() {
-        if (this.status == SeatStatus.SOLD) throw new IllegalStateException("이미 판매된 좌석입니다.");
+        if(this.status != SeatStatus.HELD){
+            throw new BadRequestException("점유된 상태의 좌석이 아닙니다.");
+        } // if
+        if (this.status == SeatStatus.SOLD) throw new BadRequestException("이미 판매된 좌석입니다.");
         this.status = SeatStatus.SOLD;
     }
 }
