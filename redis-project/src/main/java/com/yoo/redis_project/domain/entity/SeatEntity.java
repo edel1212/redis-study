@@ -47,7 +47,16 @@ public class SeatEntity extends BaseTimeEntity {
         this.status = SeatStatus.AVAILABLE;
     }
 
-    public void markSold() { this.status = SeatStatus.SOLD; }
     public void markHeld() { this.status = SeatStatus.HELD; }
     public void release()  { this.status = SeatStatus.AVAILABLE; }
+
+    /**
+     * 좌석 상태를 SOLD로 변경한다.
+     *
+     * @throws IllegalStateException 이미 판매된 좌석인 경우
+     */
+    public void markAsSold() {
+        if (this.status == SeatStatus.SOLD) throw new IllegalStateException("이미 판매된 좌석입니다.");
+        this.status = SeatStatus.SOLD;
+    }
 }
