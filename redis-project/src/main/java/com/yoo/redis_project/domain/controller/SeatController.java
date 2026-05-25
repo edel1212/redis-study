@@ -4,6 +4,8 @@ import com.yoo.redis_project.domain.dto.SeatLockRequest;
 import com.yoo.redis_project.domain.dto.SeatLockResponse;
 import com.yoo.redis_project.domain.seat.service.SeatFacadeService;
 import com.yoo.redis_project.domain.service.SeatLockService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +25,9 @@ public class SeatController {
      */
     @PostMapping("/{seatId}/lock")
     public ResponseEntity<SeatLockResponse> acquire(
-            @RequestHeader("X-Entry-Token") String token,
+            @RequestHeader("X-Entry-Token") @NotBlank(message = "token은 공백일 수 없습니다.") String token,
             @PathVariable Long seatId,
-            @RequestBody SeatLockRequest request
+            @Valid @RequestBody SeatLockRequest request
     ) {
         SeatLockResponse response = seatFacadeService
                 .acquireWithValidation(request.getConcertId(), seatId, request.getUserId(), token);
