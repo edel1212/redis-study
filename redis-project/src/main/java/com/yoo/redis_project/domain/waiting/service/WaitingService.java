@@ -44,4 +44,14 @@ public interface WaitingService {
      * @param userId    유저 ID
      */
     void releaseEntry(Long concertId, Long userId);
+
+    /**
+     * 입장 토큰을 검증한다.
+     *
+     * @param concertId 콘서트 ID
+     * @param userId    유저 ID
+     * @param token     검증할 토큰 값
+     * @return          유효하면 true
+     */
+    boolean validateToken(Long concertId, Long userId, String token);
 }

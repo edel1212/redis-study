@@ -2,6 +2,7 @@ package com.yoo.redis_project.domain.controller;
 
 import com.yoo.redis_project.domain.dto.SeatLockRequest;
 import com.yoo.redis_project.domain.dto.SeatLockResponse;
+import com.yoo.redis_project.domain.seat.service.SeatFacadeService;
 import com.yoo.redis_project.domain.service.SeatLockService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/seats")
 public class SeatController {
     private final SeatLockService seatLockService;
+    private final SeatFacadeService seatFacadeService;
 
     /**
      * 좌석 임시 점유 획득.
@@ -21,18 +23,18 @@ public class SeatController {
      */
     @PostMapping("/{seatId}/lock")
     public ResponseEntity<SeatLockResponse> acquire(
-            @PathVariable String seatId,
+            @RequestHeader("X-Entry-Token") String token,
+            @PathVariable Long seatId,
             @RequestBody SeatLockRequest request
     ) {
-        Long userId = request.getUserId();
-        boolean acquired = seatLockService.acquire(seatId, userId);
+        SeatLockResponse response = seatFacadeService
+                .acquireWithValidation(request.getConcertId(), seatId, request.getUserId(), token);
 
-        if (acquired) {
-            return ResponseEntity.ok(SeatLockResponse.success(seatId, userId));
-        }
-        // 409 Conflict — 이미 다른 사용자가 점유 중
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(SeatLockResponse.fail(seatId, userId));
+        if (!response.isAcquired()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        } // if
+
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -44,7 +46,7 @@ public class SeatController {
      */
     @DeleteMapping("/{seatId}/lock")
     public ResponseEntity<SeatLockResponse> release(
-            @PathVariable String seatId,
+            @PathVariable Long seatId,
             @RequestBody SeatLockRequest request
     ) {
         Long userId = request.getUserId();

@@ -1,6 +1,7 @@
 package com.yoo.redis_project.domain.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
+import com.yoo.redis_project.domain.waiting.service.WaitingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -15,13 +16,14 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SeatLockServiceImpl implements SeatLockService {
     private final StringRedisTemplate stringRedisTemplate;
+    private final WaitingService waitingService;
 
     /** 임시 점유 유지 시간 — 5분 (결제 완료 예상 시간) */
     private static final Duration LOCK_TTL = Duration.ofMinutes(5);
 
     // lock 획득
     @Override
-    public boolean acquire(String seatId, Long userId) {
+    public boolean acquire(Long seatId, Long userId) {
         String key   = RedisKeyConstants.SEAT_LOCK.formatted(seatId);
         String value = String.valueOf(userId); // 소유자 식별값
         try {
@@ -50,9 +52,9 @@ public class SeatLockServiceImpl implements SeatLockService {
     // - 문제:
     //  GET 후 DEL 사이에 TTL 만료 + 다른 사용자 락 획득 시 → 다른 사용자 락을 DEL 하는 사고 발생 가능
     // - 완전한 해결책:
-    //  Lua 스크립트로 GET + DEL 원자적 처리 (5단계 Redisson에서 다룸)
+    //  Lua 스크립트로 GET + DEL 원자적 처리 또는 redisson 사용 (5단계 Redisson에서 다룸)
     @Override
-    public boolean release(String seatId, Long userId) {
+    public boolean release(Long seatId, Long userId) {
         String key   = RedisKeyConstants.SEAT_LOCK.formatted(seatId);
         String value = String.valueOf(userId);
 
@@ -86,7 +88,7 @@ public class SeatLockServiceImpl implements SeatLockService {
 
     // 락 소유자 조회
     @Override
-    public Optional<Long> getLockOwner(String seatId) {
+    public Optional<Long> getLockOwner(Long seatId) {
         String key = RedisKeyConstants.SEAT_LOCK.formatted(seatId);
         try {
             String owner = stringRedisTemplate.opsForValue().get(key);

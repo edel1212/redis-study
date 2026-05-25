@@ -170,7 +170,23 @@ public class WaitingServiceImpl implements WaitingService {
 
     @Override
     public void releaseEntry(Long concertId, Long userId) {
+        String enteredKey = RedisKeyConstants.WAITING_ENTERED.formatted(concertId);
+        String enteredTokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
 
+        // 입장 대상 제거
+        redisTemplate.opsForSet().remove(enteredKey, String.valueOf(userId));
+        // 토큰 제거
+        redisTemplate.delete(enteredTokenKey);
+
+    }
+
+    @Override
+    public boolean validateToken(Long concertId, Long userId, String token) {
+        String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
+        String enteredToken = redisTemplate.opsForValue().get(tokenKey);
+        if(tokenKey == null) throw new IllegalStateException("만료되거나 존재하지 않은 토큰입니다.");
+        // redis에 저장된 토큰과 사용자 parameter token이 같은 경우 true
+        return enteredToken.equals(token);
     }
 
     /**

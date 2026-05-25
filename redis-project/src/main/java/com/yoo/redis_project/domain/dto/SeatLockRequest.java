@@ -13,4 +13,5 @@ import lombok.*;
 @ToString
 public class SeatLockRequest {
     private Long userId;
+    private Long concertId;
 }

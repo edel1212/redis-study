@@ -21,7 +21,7 @@ public interface SeatLockService {
      * @param userId 점유 요청 유저 ID (락 소유자 식별용)
      * @return 획득 성공 시 {@code true}, 이미 점유 중이면 {@code false}
      */
-    boolean acquire(String seatId, Long userId);
+    boolean acquire(Long seatId, Long userId);
 
     /**
      * 좌석 임시 점유 락을 해제한다.
@@ -33,7 +33,7 @@ public interface SeatLockService {
      * @param userId 해제 요청 유저 ID
      * @return 해제 성공 시 {@code true}, 소유자 불일치 또는 만료 시 {@code false}
      */
-    boolean release(String seatId, Long userId);
+    boolean release(Long seatId, Long userId);
 
     /**
      * 좌석 임시 점유 락 소유자를 조회한다.
@@ -43,5 +43,5 @@ public interface SeatLockService {
      * @param seatId 조회할 좌석 ID
      * @return 락 소유자 userId, 락 없으면 {@link Optional#empty()}
      */
-    Optional<Long> getLockOwner(String seatId);
+    Optional<Long> getLockOwner(Long seatId);
 }
