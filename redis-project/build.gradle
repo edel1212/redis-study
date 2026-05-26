@@ -38,6 +38,8 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers'
 	testImplementation 'org.testcontainers:junit-jupiter'
 
+    // Redisson 추가
+    implementation 'org.redisson:redisson-spring-boot-starter:4.4.0'
 }
 
 tasks.named('test') {
