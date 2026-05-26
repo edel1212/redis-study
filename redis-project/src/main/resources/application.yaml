@@ -33,3 +33,5 @@ logging:
   level:
     root: info                           # 전체 애플리케이션의 기본 로그 레벨 (보통 INFO)
     com.yoo.redis_project: debug
+
+kind: Application
