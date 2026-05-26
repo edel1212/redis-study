@@ -1,7 +1,6 @@
 package com.yoo.redis_project.domain.seat.service;
 
-import com.yoo.redis_project.domain.dto.SeatLockResponse;
-import com.yoo.redis_project.domain.service.SeatLockService;
+import com.yoo.redis_project.domain.seat.dto.SeatLockResponse;
 import com.yoo.redis_project.domain.waiting.service.WaitingService;
 import com.yoo.redis_project.exception.custom.BadRequestException;
 import lombok.RequiredArgsConstructor;

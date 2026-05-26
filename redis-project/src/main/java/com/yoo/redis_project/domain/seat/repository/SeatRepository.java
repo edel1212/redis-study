@@ -1,6 +1,6 @@
-package com.yoo.redis_project.domain.repository;
+package com.yoo.redis_project.domain.seat.repository;
 
-import com.yoo.redis_project.domain.entity.SeatEntity;
+import com.yoo.redis_project.domain.seat.entity.SeatEntity;
 import com.yoo.redis_project.domain.enums.SeatStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 

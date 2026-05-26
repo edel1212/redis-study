@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.seat.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
 import com.yoo.redis_project.domain.waiting.service.WaitingService;

@@ -1,9 +1,9 @@
 package com.yoo.redis_project.domain.booking.service;
 
 import com.yoo.redis_project.domain.booking.dto.BookingResponse;
-import com.yoo.redis_project.domain.entity.SeatEntity;
-import com.yoo.redis_project.domain.repository.SeatRepository;
-import com.yoo.redis_project.domain.service.SeatLockService;
+import com.yoo.redis_project.domain.seat.entity.SeatEntity;
+import com.yoo.redis_project.domain.seat.repository.SeatRepository;
+import com.yoo.redis_project.domain.seat.service.SeatLockService;
 import com.yoo.redis_project.domain.waiting.service.WaitingService;
 import com.yoo.redis_project.exception.custom.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;

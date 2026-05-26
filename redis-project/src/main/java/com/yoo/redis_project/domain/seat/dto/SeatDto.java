@@ -1,6 +1,6 @@
-package com.yoo.redis_project.domain.dto;
+package com.yoo.redis_project.domain.seat.dto;
 
-import com.yoo.redis_project.domain.entity.SeatEntity;
+import com.yoo.redis_project.domain.seat.entity.SeatEntity;
 import com.yoo.redis_project.domain.enums.SeatStatus;
 import lombok.*;
 

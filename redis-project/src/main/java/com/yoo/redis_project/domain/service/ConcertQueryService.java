@@ -1,10 +1,9 @@
 package com.yoo.redis_project.domain.service;
 
 import com.yoo.redis_project.domain.dto.ConcertDto;
-import com.yoo.redis_project.domain.dto.SeatDto;
+import com.yoo.redis_project.domain.seat.dto.SeatDto;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 콘서트 조회 서비스.

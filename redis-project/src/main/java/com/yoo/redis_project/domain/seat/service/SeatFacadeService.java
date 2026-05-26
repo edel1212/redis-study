@@ -1,6 +1,6 @@
 package com.yoo.redis_project.domain.seat.service;
 
-import com.yoo.redis_project.domain.dto.SeatLockResponse;
+import com.yoo.redis_project.domain.seat.dto.SeatLockResponse;
 
 public interface SeatFacadeService {
     /**

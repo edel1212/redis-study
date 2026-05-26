@@ -1,9 +1,9 @@
-package com.yoo.redis_project.domain.controller;
+package com.yoo.redis_project.domain.seat;
 
-import com.yoo.redis_project.domain.dto.SeatLockRequest;
-import com.yoo.redis_project.domain.dto.SeatLockResponse;
+import com.yoo.redis_project.domain.seat.dto.SeatLockRequest;
+import com.yoo.redis_project.domain.seat.dto.SeatLockResponse;
 import com.yoo.redis_project.domain.seat.service.SeatFacadeService;
-import com.yoo.redis_project.domain.service.SeatLockService;
+import com.yoo.redis_project.domain.seat.service.SeatLockService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;

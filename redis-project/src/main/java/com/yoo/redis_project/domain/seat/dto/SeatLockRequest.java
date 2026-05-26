@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.dto;
+package com.yoo.redis_project.domain.seat.dto;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.*;

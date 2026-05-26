@@ -1,6 +1,7 @@
-package com.yoo.redis_project.domain.entity;
+package com.yoo.redis_project.domain.seat.entity;
 
 import com.yoo.redis_project.common.entity.BaseTimeEntity;
+import com.yoo.redis_project.domain.entity.ConcertEntity;
 import com.yoo.redis_project.domain.enums.SeatStatus;
 import com.yoo.redis_project.exception.custom.BadRequestException;
 import jakarta.persistence.*;

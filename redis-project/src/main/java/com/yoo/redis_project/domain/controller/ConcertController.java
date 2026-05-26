@@ -2,8 +2,7 @@ package com.yoo.redis_project.domain.controller;
 
 import com.yoo.redis_project.domain.dto.ConcertDto;
 import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
-import com.yoo.redis_project.domain.dto.ConcertRankingEntryResponse;
-import com.yoo.redis_project.domain.dto.SeatDto;
+import com.yoo.redis_project.domain.seat.dto.SeatDto;
 import com.yoo.redis_project.domain.service.ConcertQueryService;
 import com.yoo.redis_project.domain.service.ConcertRankingService;
 import com.yoo.redis_project.domain.service.ConcertViewService;

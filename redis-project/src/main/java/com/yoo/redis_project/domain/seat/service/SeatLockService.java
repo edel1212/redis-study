@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.seat.service;
 
 import java.util.Optional;
 
