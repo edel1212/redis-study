@@ -185,7 +185,7 @@ public class WaitingServiceImpl implements WaitingService {
     public boolean validateToken(Long concertId, Long userId, String token) {
         String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
         String enteredToken = redisTemplate.opsForValue().get(tokenKey);
-        if(enteredToken == null) throw new BadRequestException("만료되거나 존재하지 않은 토큰입니다.");
+        if(enteredToken == null) throw new BadRequestException("존재하지 않은 토큰입니다.");
         // redis에 저장된 토큰과 사용자 parameter token이 같은 경우 true
         return enteredToken.equals(token);
     }

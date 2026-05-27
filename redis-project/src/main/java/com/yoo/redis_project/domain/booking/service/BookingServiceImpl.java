@@ -42,13 +42,12 @@ public class BookingServiceImpl implements BookingService {
         seat.markAsSold();
         seatRepository.save(seat);
 
-
+        // TODO : 해당 부분의 처리 방법은 Message Queue를 사용해서 처리하도록 변경이 필요
+        
         // 입장 자리 반환 (entered + token 제거)
         Long concertId = seat.getConcert().getId();
         waitingService.releaseEntry(concertId, userId);
-
-        // TODO : 여기서 예외 발생 시 어떻게 처리함 ? ( DB의 경우 롤백 되지만 Redis 정보는 날라가잖아 )
-
+        
         // ⑤ 좌석 락 해제
         seatLockService.release(seatId, userId);
 

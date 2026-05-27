@@ -49,7 +49,28 @@ public class SeatEntity extends BaseTimeEntity {
         this.status = SeatStatus.AVAILABLE;
     }
 
-    public void markHeld() { this.status = SeatStatus.HELD; }
+    /**
+     * 좌석이 점유 가능한 상태인지 검증한다.
+     *
+     * @throws BadRequestException 이미 판매되었거나 점유된 좌석인 경우
+     */
+    public void validateAvailable() {
+        if (this.status == SeatStatus.SOLD) {
+            throw new BadRequestException("이미 판매된 좌석입니다.");
+        }
+        if (this.status == SeatStatus.HELD) {
+            throw new BadRequestException("이미 점유된 좌석입니다.");
+        }
+    }
+
+    /**
+     * 좌석 점유 처리
+     */
+    public void markHeld() {
+        validateAvailable();
+        this.status = SeatStatus.HELD;
+    }
+
     public void release()  { this.status = SeatStatus.AVAILABLE; }
 
     /**
@@ -61,7 +82,6 @@ public class SeatEntity extends BaseTimeEntity {
         if(this.status != SeatStatus.HELD){
             throw new BadRequestException("점유된 상태의 좌석이 아닙니다.");
         } // if
-        if (this.status == SeatStatus.SOLD) throw new BadRequestException("이미 판매된 좌석입니다.");
         this.status = SeatStatus.SOLD;
     }
 }

@@ -21,4 +21,8 @@ public class SeatLockResponse {
     public static SeatLockResponse fail(Long seatId, Long userId) {
         return new SeatLockResponse(seatId, userId, false, "이미 점유된 좌석입니다");
     }
+
+    public static SeatLockResponse fail(Long seatId, Long userId, String message) {
+        return new SeatLockResponse(seatId, userId, false, message);
+    }
 }
