@@ -39,4 +39,7 @@ public final class RedisKeyConstants {
     public static final String WAITING_ENTERED = "waiting:concert:%d:entered";
     /** 좌석 점유 가능 인증 토큰 "set" 방식. 형식: waiting:concert:{id}:token:{userId} "{uuid}" EX 300  */
     public static final String WAITING_TOKEN   = "waiting:concert:%d:token:%d";
+
+    /** 좌석 분산락 방식. 형식:seat-mutex:{seatId}  */
+    public static final String SEAT_MUTEX = "seat-mutex:%d";
 }

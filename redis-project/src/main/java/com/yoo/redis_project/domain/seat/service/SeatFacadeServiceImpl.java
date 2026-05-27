@@ -1,5 +1,6 @@
 package com.yoo.redis_project.domain.seat.service;
 
+import com.yoo.redis_project.common.constants.RedisKeyConstants;
 import com.yoo.redis_project.domain.seat.dto.SeatLockResponse;
 import com.yoo.redis_project.domain.seat.entity.SeatEntity;
 import com.yoo.redis_project.domain.seat.repository.SeatRepository;
@@ -11,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.concurrent.TimeUnit;
 
@@ -23,14 +23,13 @@ public class SeatFacadeServiceImpl implements SeatFacadeService {
     private final WaitingService waitingService;
     private final SeatLockService seatLockService;
     private final SeatRepository seatRepository;
+    private final SeatService service;
 
     private static final long WAIT_TIME  = 3L;
-    private static final long LEASE_TIME = 5L;
 
     // redissonClient
     private final RedissonClient redissonClient;
 
-    @Transactional
     @Override
     public SeatLockResponse acquireWithValidation(Long concertId, Long seatId, Long userId, String token) {
         // ① 입장 토큰 검증 [RLock 밖]
@@ -40,13 +39,13 @@ public class SeatFacadeServiceImpl implements SeatFacadeService {
         } // if
 
         // ② RLock 획득 - 좌석 ID를 기준으로 함
-        RLock lock = redissonClient.getLock("seat-mutex:" + seatId);
+        RLock lock = redissonClient.getLock(RedisKeyConstants.SEAT_MUTEX.formatted(seatId));
 
         boolean acquired = false;
 
         try{
             // ③ RLock 잠금
-            acquired = lock.tryLock(WAIT_TIME, LEASE_TIME , TimeUnit.SECONDS);
+            acquired = lock.tryLock(WAIT_TIME, -1 , TimeUnit.SECONDS);
             
             // 조건 처리
             if (!acquired) {
@@ -57,7 +56,7 @@ public class SeatFacadeServiceImpl implements SeatFacadeService {
             SeatEntity seat = seatRepository.findById(seatId)
                     .orElseThrow(() -> new ResourceNotFoundException("좌석을 찾을 수 없습니다."));
 
-            // ④  엔티티를 통해 상태 검증 및 변경을 "먼저" 수행
+            // ④  엔티티를 통해 좌석 상태 검증 진행
             seat.validateAvailable();
 
             // ④ Redis 락 (SET NX EX) 획득
@@ -68,8 +67,9 @@ public class SeatFacadeServiceImpl implements SeatFacadeService {
                 return SeatLockResponse.fail(seatId, userId);
             } // if
 
+            // 이부분은 따로 트랜잭션 처리가 필요함
             // ⑤ Redis 성공 후에야 DB 변경
-            seat.markHeld();
+            service.validateAndMarkHeld(seat);
             return SeatLockResponse.success(seatId, userId);
 
         } catch (InterruptedException e) {
