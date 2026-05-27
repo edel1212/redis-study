@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.concurrent.TimeUnit;
 
@@ -23,13 +24,14 @@ public class SeatFacadeServiceImpl implements SeatFacadeService {
     private final WaitingService waitingService;
     private final SeatLockService seatLockService;
     private final SeatRepository seatRepository;
-    private final SeatService service;
+    private final SeatService seatService;
 
     private static final long WAIT_TIME  = 3L;
 
     // redissonClient
     private final RedissonClient redissonClient;
 
+    @Transactional
     @Override
     public SeatLockResponse acquireWithValidation(Long concertId, Long seatId, Long userId, String token) {
         // ① 입장 토큰 검증 [RLock 밖]
@@ -64,12 +66,13 @@ public class SeatFacadeServiceImpl implements SeatFacadeService {
 
             // 락 획득 실패 시 상태 복구
             if(!lockResult) {
+                seatService.markAvailable(seatId);
                 return SeatLockResponse.fail(seatId, userId);
             } // if
 
             // 이부분은 따로 트랜잭션 처리가 필요함
             // ⑤ Redis 성공 후에야 DB 변경
-            service.validateAndMarkHeld(seat);
+            seatService.validateAndMarkHeld(seatId);
             return SeatLockResponse.success(seatId, userId);
 
         } catch (InterruptedException e) {
