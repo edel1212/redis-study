@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.concert.service;
 
 /**
  * 콘서트 조회수 카운터 서비스.

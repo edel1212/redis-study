@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.enums;
+package com.yoo.redis_project.enums;
 
 public enum WaitingStatus {
     WAITING,        // 대기 중

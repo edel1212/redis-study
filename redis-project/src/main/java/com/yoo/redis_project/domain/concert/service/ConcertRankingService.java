@@ -1,7 +1,7 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.concert.service;
 
-import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
-import com.yoo.redis_project.domain.dto.ConcertRankingEntryResponse;
+import com.yoo.redis_project.domain.concert.dto.ConcertRankingDetailResponse;
+import com.yoo.redis_project.domain.concert.dto.ConcertRankingEntryResponse;
 
 import java.util.List;
 import java.util.Optional;

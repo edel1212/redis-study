@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.dto;
+package com.yoo.redis_project.domain.concert.dto;
 
 import lombok.*;
 

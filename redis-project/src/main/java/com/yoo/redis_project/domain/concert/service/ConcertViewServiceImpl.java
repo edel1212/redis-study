@@ -1,8 +1,8 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.concert.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
-import com.yoo.redis_project.domain.entity.ConcertEntity;
-import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.concert.entity.ConcertEntity;
+import com.yoo.redis_project.domain.concert.repository.ConcertRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;

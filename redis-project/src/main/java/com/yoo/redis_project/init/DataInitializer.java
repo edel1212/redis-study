@@ -1,8 +1,8 @@
 package com.yoo.redis_project.init;
 
-import com.yoo.redis_project.domain.entity.ConcertEntity;
+import com.yoo.redis_project.domain.concert.entity.ConcertEntity;
 import com.yoo.redis_project.domain.seat.entity.SeatEntity;
-import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.concert.repository.ConcertRepository;
 import com.yoo.redis_project.domain.seat.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

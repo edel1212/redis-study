@@ -1,6 +1,6 @@
 package com.yoo.redis_project.domain.waiting.dto;
 
-import com.yoo.redis_project.domain.enums.WaitingStatus;
+import com.yoo.redis_project.enums.WaitingStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

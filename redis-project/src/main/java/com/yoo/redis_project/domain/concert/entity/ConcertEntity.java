@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.entity;
+package com.yoo.redis_project.domain.concert.entity;
 
 import com.yoo.redis_project.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;

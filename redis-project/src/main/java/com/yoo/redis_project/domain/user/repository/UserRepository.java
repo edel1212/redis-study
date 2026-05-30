@@ -1,6 +1,6 @@
-package com.yoo.redis_project.domain.repository;
+package com.yoo.redis_project.domain.user.repository;
 
-import com.yoo.redis_project.domain.entity.UserEntity;
+import com.yoo.redis_project.domain.user.entity.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

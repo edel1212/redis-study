@@ -1,6 +1,6 @@
 package com.yoo.redis_project.scheduler;
 
-import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.concert.repository.ConcertRepository;
 import com.yoo.redis_project.domain.waiting.service.WaitingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,6 @@
 package com.yoo.redis_project.scheduler;
 
-import com.yoo.redis_project.domain.service.ConcertViewService;
+import com.yoo.redis_project.domain.concert.service.ConcertViewService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

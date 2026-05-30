@@ -1,6 +1,6 @@
-package com.yoo.redis_project.domain.dto;
+package com.yoo.redis_project.domain.concert.dto;
 
-import com.yoo.redis_project.domain.entity.ConcertEntity;
+import com.yoo.redis_project.domain.concert.entity.ConcertEntity;
 import lombok.*;
 
 import java.time.LocalDateTime;

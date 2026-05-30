@@ -1,11 +1,11 @@
-package com.yoo.redis_project.domain.controller;
+package com.yoo.redis_project.domain.concert;
 
-import com.yoo.redis_project.domain.dto.ConcertDto;
-import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
+import com.yoo.redis_project.domain.concert.dto.ConcertDto;
+import com.yoo.redis_project.domain.concert.dto.ConcertRankingDetailResponse;
 import com.yoo.redis_project.domain.seat.dto.SeatDto;
-import com.yoo.redis_project.domain.service.ConcertQueryService;
-import com.yoo.redis_project.domain.service.ConcertRankingService;
-import com.yoo.redis_project.domain.service.ConcertViewService;
+import com.yoo.redis_project.domain.concert.service.ConcertQueryService;
+import com.yoo.redis_project.domain.concert.service.ConcertRankingService;
+import com.yoo.redis_project.domain.concert.service.ConcertViewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

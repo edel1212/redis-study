@@ -1,6 +1,6 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.concert.service;
 
-import com.yoo.redis_project.domain.dto.ConcertDto;
+import com.yoo.redis_project.domain.concert.dto.ConcertDto;
 import com.yoo.redis_project.domain.seat.dto.SeatDto;
 
 import java.util.List;

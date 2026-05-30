@@ -1,4 +1,4 @@
-package com.yoo.redis_project.domain.entity;
+package com.yoo.redis_project.domain.user.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

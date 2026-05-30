@@ -1,10 +1,10 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.concert.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
-import com.yoo.redis_project.domain.dto.ConcertDto;
-import com.yoo.redis_project.domain.dto.ConcertRankingDetailResponse;
-import com.yoo.redis_project.domain.dto.ConcertRankingEntryResponse;
-import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.concert.dto.ConcertDto;
+import com.yoo.redis_project.domain.concert.dto.ConcertRankingDetailResponse;
+import com.yoo.redis_project.domain.concert.dto.ConcertRankingEntryResponse;
+import com.yoo.redis_project.domain.concert.repository.ConcertRepository;
 import com.yoo.redis_project.utils.RedisCacheHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,10 +1,10 @@
-package com.yoo.redis_project.domain.service;
+package com.yoo.redis_project.domain.concert.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
-import com.yoo.redis_project.domain.dto.ConcertDto;
+import com.yoo.redis_project.domain.concert.dto.ConcertDto;
 import com.yoo.redis_project.domain.seat.dto.SeatDto;
-import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.concert.repository.ConcertRepository;
 import com.yoo.redis_project.domain.seat.repository.SeatRepository;
 import com.yoo.redis_project.exception.custom.ResourceNotFoundException;
 import com.yoo.redis_project.utils.RedisCacheHelper;
