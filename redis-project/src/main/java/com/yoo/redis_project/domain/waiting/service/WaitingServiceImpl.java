@@ -41,11 +41,13 @@ public class WaitingServiceImpl implements WaitingService {
         // 대기 사용자 사용자 목록 Key
         String tokenKey   = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
 
-        // 입장가능 여부
-        Boolean isEntered = redisTemplate.opsForSet().isMember(enteredKey, userIdStr);
+        // 입장가능 여부 - score(만료 timestamp) 기반으로 유효성 판단
+        Double expiryScore = redisTemplate.opsForZSet().score(enteredKey, userIdStr);
+        // 값이 있으며 + 만료시간이 현재 시간보다 커야함
+        boolean isEntered = expiryScore != null && expiryScore > System.currentTimeMillis();
 
         // 입장이 가능한 사용자일 경우
-        if(Boolean.TRUE.equals(isEntered)){
+        if(isEntered){
             log.info("입장 가능한 사용자 : {}",userId);
             // 입장 가능 Token을 받아옴 - 스케줄링을 통해 생성된 Key
             String token = redisTemplate.opsForValue().get(tokenKey);
@@ -54,8 +56,8 @@ public class WaitingServiceImpl implements WaitingService {
                 return EnqueueResult.entered(token);
             }//if
 
-            // token이 만료 됐을 경우 entered 대상에서 제거
-            redisTemplate.opsForSet().remove(enteredKey, userIdStr);
+            // score는 유효하나 token이 없는 엣지 케이스 - entered에서 제거
+            redisTemplate.opsForZSet().remove(enteredKey, userIdStr);
             log.info("토큰 만료로 entered 제거 concertId={}, userId={}", concertId, userId);
             return EnqueueResult.expired();
         } // if
@@ -97,16 +99,17 @@ public class WaitingServiceImpl implements WaitingService {
         // 입장 가능자 Key 목록
         String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
 
-        // 입장 가능자인지 확인
-        Boolean isEntered = redisTemplate.opsForSet().isMember(enteredKey, userIdStr);
-        if(Boolean.TRUE.equals(isEntered)){
+        // 입장 가능자인지 확인 - score(만료 timestamp) 기반으로 유효성 판단
+        Double expiryScore = redisTemplate.opsForZSet().score(enteredKey, userIdStr);
+        boolean isEntered = expiryScore != null && expiryScore > System.currentTimeMillis();
+        if(isEntered){
             // token 정보를 가져옴
             String token = redisTemplate.opsForValue().get(tokenKey);
             // key가 존재할 경우 응답
             if(token != null) return WaitingResponse.entered(token);
 
-            // token이 만료 됐을 경우 entered 대상에서 제거
-            redisTemplate.opsForSet().remove(enteredKey, userIdStr);
+            // score는 유효하나 token이 없는 엣지 케이스 - entered에서 제거
+            redisTemplate.opsForZSet().remove(enteredKey, userIdStr);
             log.info("토큰 만료로 entered 제거 concertId={}, userId={}", concertId, userId);
             return EnqueueResult.expired().getResponse();
         } // if
@@ -129,12 +132,17 @@ public class WaitingServiceImpl implements WaitingService {
         // 대기열 사용자
         String queueKey   = RedisKeyConstants.WAITING_QUEUE.formatted(concertId);
 
-        // Step 1. token이 만료된 entered 사용자 정리 (TODO : 추후 entered 저장 방식을 set -> string + TTL로 변경 예정)
-        cleanupExpiredEntries(concertId, enteredKey);
+        long now = System.currentTimeMillis();
+
+        // Step 1. 만료된 entered 멤버 정리 (score ≤ now-1 인 멤버 범위 삭제)
+        redisTemplate.opsForZSet().removeRangeByScore(enteredKey, 0, now - 1);
 
         // Step 2. 빈자리 계산
-        // 입장 사용자 수
-        Long currentEnteredCount = redisTemplate.opsForSet().size(enteredKey);
+        // 유효한 입장 사용자 수 (score > now 인 멤버만 집계)
+        Long currentEnteredCount = redisTemplate.opsForZSet()
+                // key, 현재시간, 최대 값 범위
+                // - count(K key, double min, double max);
+                .count(enteredKey, now, Double.MAX_VALUE);
         long currentEntered = (currentEnteredCount != null) ? currentEnteredCount : 0L;
         // 입장이 가능한 사용자 수
         long available = MAX_ENTRY_COUNT - currentEntered;
@@ -160,10 +168,12 @@ public class WaitingServiceImpl implements WaitingService {
 
             // 토큰 먼저 → entered 나중 (race condition 방지)
             redisTemplate.opsForValue().set(tokenKey, token, TOKEN_TTL);
-            redisTemplate.opsForSet().add(enteredKey, userId);
+            // score = 토큰 만료 timestamp: 만료 여부를 score 비교로 판단
+            double expiryScore = System.currentTimeMillis() + TOKEN_TTL.toMillis();
+            redisTemplate.opsForZSet().add(enteredKey, userId, expiryScore);
         } // for
 
-        // entered 키 TTL 설정 (TODO : 추 후 제거 예정 - 로직 변경)
+        // entered 키 안전망 TTL (Sorted Set이므로 개별 score로 만료 관리하지만 키 자체 정리용으로 유지)
         redisTemplate.expire(enteredKey, ENTERED_TTL);
 
         log.info("[스케줄링] : 입장 처리 완료 concertId={}, 입장 인원={}", concertId, popped.size());
@@ -175,7 +185,7 @@ public class WaitingServiceImpl implements WaitingService {
         String enteredTokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(concertId, userId);
 
         // 입장 대상 제거
-        redisTemplate.opsForSet().remove(enteredKey, String.valueOf(userId));
+        redisTemplate.opsForZSet().remove(enteredKey, String.valueOf(userId));
         // 토큰 제거
         redisTemplate.delete(enteredTokenKey);
 
@@ -190,33 +200,4 @@ public class WaitingServiceImpl implements WaitingService {
         return enteredToken.equals(token);
     }
 
-    /**
-     * 입장 가능하나 토큰이 만료 됐을 경우 처리
-     * <p>추후 해당 로직 제거 - 자료구조 변경 진행</p>
-     * ! TODO : 제거 예정
-     *
-     * @param concertId the 콘서트 아이디
-     * @param enteredKey 입장가능자 확인 key
-     */
-    private void cleanupExpiredEntries(Long concertId, String enteredKey) {
-
-        Set<String> enteredMembers = redisTemplate.opsForSet().members(enteredKey);
-        // 입장 가능 대상 목록이 없을 경우 skip
-        if (enteredMembers == null || enteredMembers.isEmpty()) return;
-
-        // 입장 가능자 loop
-        for (String userId : enteredMembers) {
-            // 토큰 조회
-            String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(
-                    concertId, Long.parseLong(userId));
-            String token = redisTemplate.opsForValue().get(tokenKey);
-
-            // 입장 가능자이지만 만료이 만료됐을 경우 정리 처리
-            // TODO - 추후 해다 방식 변경 예정 Set 자체는 TTL설정이 되지 않으므로 현방향 유지 자료구조 변경 예정
-            if (token == null) {
-                redisTemplate.opsForSet().remove(enteredKey, userId);
-                log.info("만료자 정리 concertId={}, userId={}", concertId, userId);
-            } // if
-        } // for
-    }
 }
