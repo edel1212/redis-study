@@ -1,28 +1,22 @@
 package com.yoo.redis_project.service;
 
 import com.yoo.redis_project.common.constants.RedisKeyConstants;
-import com.yoo.redis_project.domain.entity.ConcertEntity;
-import com.yoo.redis_project.domain.enums.SeatStatus;
-import com.yoo.redis_project.domain.repository.ConcertRepository;
+import com.yoo.redis_project.domain.concert.entity.ConcertEntity;
+import com.yoo.redis_project.domain.concert.repository.ConcertRepository;
 import com.yoo.redis_project.domain.seat.dto.SeatLockResponse;
 import com.yoo.redis_project.domain.seat.entity.SeatEntity;
 import com.yoo.redis_project.domain.seat.repository.SeatRepository;
 import com.yoo.redis_project.domain.seat.service.SeatFacadeService;
-import com.yoo.redis_project.domain.seat.service.SeatLockService;
-import com.yoo.redis_project.domain.seat.service.SeatService;
 import com.yoo.redis_project.domain.waiting.service.WaitingService;
-import com.yoo.redis_project.support.RedisContainerSupport;
+import com.yoo.redis_project.enums.SeatStatus;
 import com.yoo.redis_project.support.TestContainerSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
 import java.util.Map;
@@ -88,7 +82,8 @@ public class SeatConcurrencyTest extends TestContainerSupport {
             String enteredKey = RedisKeyConstants.WAITING_ENTERED.formatted(testConcertId);
             String tokenKey = RedisKeyConstants.WAITING_TOKEN.formatted(testConcertId, userId);
 
-            stringRedisTemplate.opsForSet().add(enteredKey, String.valueOf(userId));
+            long futureScore = System.currentTimeMillis() + Duration.ofMinutes(6).toMillis();
+            stringRedisTemplate.opsForZSet().add(enteredKey, String.valueOf(userId), futureScore);
             stringRedisTemplate.opsForValue().set(tokenKey, token, Duration.ofMinutes(5));
             tokenMap.put(userId, token);
         }
