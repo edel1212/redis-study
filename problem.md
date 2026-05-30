@@ -114,3 +114,169 @@ Spring 프록시: 트랜잭션 커밋 (COMMIT)   ← 메서드 밖에서 실행
 10:00:00.051  return success
 10:00:00.052  finally → RLock 해제     ← 커밋 후에 해제
 ```
+
+## 문제사항 3
+> Redis 자료구조의 한계
+> - Set 방식 : 
+>   - 장점 : 계산이 쉬움, 중복 방지, 구조 단순
+>   - 단점 : values에 대한 TTL 설정 불가능하여 중도 이탈자 처리가 어려움
+> - String(Value) 방식 :
+>   - 장점 : 개별 TTL 가능하여 중도 이탈자 제거 가능
+>   - 단점 : 현재 입장 인원 계산이 어려움, 전체 입장 사용자 관리가 어려움
+```text
+[사용자]
+    │
+    ├─ 1. 콘서트 대기 요청
+    │
+    ├─ 2. Redis 대기열(ZSet) 등록
+    │      waiting:queue:{concertId}
+    │
+    │
+[스케줄러]
+    │
+    ├─ 3. 대기열 사용자 순차 입장 처리
+    │
+    ├─ token 발급 (짧은 TTL) 
+    │      waiting:token:{concertId}:{userId}
+    │
+    ├─ 입장 권한 부여(Set)
+    │      waiting:entered:{concertId} {userId}
+    │
+    ▼
+────────────────────────────────────────────
+
+[문제 상황]
+
+[사용자]
+    │
+    ├─ 4. 입장 후 좌석 선점 진행 안 함
+    │      (중도 이탈 / 브라우저 종료 / 새로고침)
+    │
+    ├─ token key TTL 만료
+    │      → 자동 제거됨
+    │
+    ├─ 그러나 entered key는 TTL 2시간 유지
+    │
+    ├─ 현재 입장 가능 사용자로 계속 계산됨
+    │
+    ├─ available = MAX_ENTRY_COUNT - currentEntered
+    │
+    ├─ 실제 사용자는 없지만
+    │   입장 중인 사용자로 판단
+    │
+    └─ 💥 새로운 사용자 입장 불가능
+        (유령 세션 문제 발생)
+```
+
+### 해결 방법
+```text
+
+[사용자]
+    │
+    ├─ 1. 콘서트 대기 요청
+    │
+    ├─ ZADD waiting:queue:{concertId}
+    │      score = 요청 시간(timestamp)
+    │      member = userId
+    │
+    ▼
+
+
+┌────────────────────────────────────────────┐
+│              processEntry()               │
+│          (스케줄러 주기적 실행)            │
+└────────────────────────────────────────────┘
+
+    │
+    ├─ 현재 시간 조회
+    │
+    ├─ long now = System.currentTimeMillis()
+    │
+    ▼
+
+
+[Step 1. 만료된 entered 사용자 정리]
+
+    │
+    ├─ ZREMRANGEBYSCORE
+    │      waiting:entered:{concertId}
+    │      0 ~ now-1 범위 삭제
+    │
+    ├─ score(expireTime)가 현재 시간보다 작은 사용자 제거
+    │
+    └─ 중도 이탈 / 만료 사용자 cleanup 완료
+    │
+    ▼
+
+
+[Step 2. 현재 입장 가능 인원 계산]
+
+    │
+    ├─ ZCOUNT enteredKey now +inf
+    │
+    ├─ score >= now 인 사용자만 집계
+    │
+    ├─ 현재 유효 입장 사용자 수 계산
+    │
+    ├─ available =
+    │      MAX_ENTRY_COUNT - currentEntered
+    │
+    └─ 빈 자리 수 계산
+    │
+    ▼
+
+
+[입장 가능 여부 판단]
+
+    │
+    ├─ available <= 0
+    │      └─ 종료
+    │
+    └─ available > 0
+           ▼
+
+
+[Step 3. 대기열 사용자 입장 처리]
+
+    │
+    ├─ ZPOPMIN queueKey available
+    │
+    ├─ 대기 순서가 가장 빠른 사용자 추출
+    │
+    └─ 입장 대상 사용자 목록 확보
+    │
+    ▼
+
+
+[사용자별 입장 처리]
+
+    │
+    ├─ UUID 토큰 생성
+    │
+    ├─ SET waiting:token:{concertId}:{userId}
+    │      value = UUID
+    │      TTL = TOKEN_TTL
+    │
+    ├─ score 계산
+    │
+    ├─ expiryScore =
+    │      currentTime + TOKEN_TTL
+    │
+    ├─ ZADD waiting:entered:{concertId}
+    │      score = expiryScore
+    │      member = userId
+    │
+    └─ 입장 가능 사용자 등록
+    │
+    ▼
+
+
+[입장 상태 유지]
+
+    │
+    ├─ enteredKey 자체 TTL 설정
+    │
+    ├─ EXPIRE enteredKey ENTERED_TTL
+    │
+    └─ 전체 key orphan 방지
+```
