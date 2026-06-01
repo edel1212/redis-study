@@ -280,3 +280,85 @@ Spring 프록시: 트랜잭션 커밋 (COMMIT)   ← 메서드 밖에서 실행
     │
     └─ 전체 key orphan 방지
 ```
+
+## 문제사항 4
+> DB 좌석 결제 완료가 commit -> Redis 좌석 선점 관련 Key 정리 완료 -> 커밋 시도 💥 시 에러로 인한 롤백
+> - 해당 문제는 가장 큰 이슈가 되는 시나리오 좌석이 SOLD 되고 Reids Key 정리가 안되면 TTL로 인해 처리가 되지만 해당 문제는 CS문제까지 갈 수 있음
+
+### 문제 코드
+```java
+@Transactional
+@Override
+public BookingResponse confirm(Long seatId, Long userId) {
+
+    // 지정 좌석 조회 - 점유자 조회
+    Optional<Long> owner = seatLockService.getLockOwner(seatId);
+
+    if (owner.isEmpty() || !owner.get().equals(userId)) {
+        return BookingResponse.fail(seatId, "좌석 점유 상태가 아니거나 소유자가 다릅니다.");
+    } // if
+
+    // DB 좌석 조회
+    SeatEntity seat = seatRepository.findById(seatId)
+            .orElseThrow(() -> new ResourceNotFoundException("좌석을 찾을 수 없습니다."));
+
+    // 좌석 상태 업데이트
+    seat.markAsSold();
+    seatRepository.save(seat);
+    
+    // 입장 자리 반환 (entered + token 제거)
+    Long concertId = seat.getConcert().getId();
+    waitingService.releaseEntry(concertId, userId);
+    
+    // ⑤ 좌석 락 해제
+    seatLockService.release(seatId, userId);
+
+    // 💥 ← 여기서 실패 (DB 락 타임아웃, 제약조건, 커넥션 끊김 등)
+    //  └─ DB 롤백 → seat는 다시 HELD/AVAILABLE
+    // 그러나 Redis 토큰·락은 이미 삭제됨
+    //  → 유저는 좌석을 못 샀는데, 재시도할 토큰마저 잃음
+    //  → "결제됐는데 자리가 없다 + 다시 들어갈 수도 없다"
+
+    log.info("예매 확정 seatId={}, userId={}", seatId, userId);
+    return BookingResponse.success(seatId, userId);
+}
+```
+
+### 문제 흐름
+"문제사항 2"와 비슷한 이유 하지만 더 크리티컬한 이유
+- 1시간을 기다려 입장이 되었고 좌석 선점 및 구매까지 진행했으나 rollback 되는 경우
+
+### 개선 코드
+- `@Transaction` 제거
+- Reids Key 제거 부분 분리 - 문제가 발생해도 TTL을 통해 자가 회복이 가능
+```java
+@Override
+public BookingResponse confirm(Long seatId, Long userId) {
+
+    // 지정 좌석 조회 - 점유자 조회
+    Optional<Long> owner = seatLockService.getLockOwner(seatId);
+
+    if (owner.isEmpty() || !owner.get().equals(userId)) {
+        return BookingResponse.fail(seatId, "좌석 점유 상태가 아니거나 소유자가 다릅니다.");
+    } // if
+
+    // 자리 선점 및 대상 ConcertID 반환 - 구조적 문제 학습용이기에 단일 기반으로 잡혀있음
+    Long concertId = bookingService.markAsSold(seatId);
+
+    // 3) 커밋 성공 후 Redis 정리 (best-effort, 자가 치유 대상)
+    try {
+        waitingService.releaseEntry(concertId, userId);
+        seatLockService.release(seatId, userId);
+    } catch (Exception e) {
+        // 좌석은 이미 SOLD로 확정됨(source of truth = DB).
+        // lock(TTL) / token(TTL) / entered(removeRangeByScore 스케줄러)로 자가 치유되므로
+        // 정리 실패를 예매 실패로 전파하지 않는다.
+        log.error("예매 확정 후 Redis 정리 실패(자가 치유 대상) seatId={}, userId={}",
+                seatId, userId, e);
+    }
+
+    log.info("예매 확정 seatId={}, userId={}", seatId, userId);
+    return BookingResponse.success(seatId, userId);
+}
+```
+
