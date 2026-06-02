@@ -90,4 +90,133 @@ Kafka 토픽으로 자동 발행
 > "컨슈머 멱등성은 옵션이 아니라 필수" — Outbox 도입 시 가장 먼저 합의해야 할 사항이다.
 > - 먹등성을 유지하기 위해 outBox Table에 `aggregateId`를 두고 파티션 키 사용 -> **"순서는 aggregateId 단위로만 보장"**
 
+## Saga 패턴
 
+###  Saga 패턴이 푸는 문제 
+> Outbox와 "다른 계층"이며, 이 둘은 경쟁 관계가 아니다. "층위가 달라서 보통 함께 쓰음"
+> - Outbox는 메시지 한 건의 발행 신뢰성
+> - Saga는 여러 단계로 이뤄진 비즈니스 흐름 전체의 정합성
+```text
+Outbox 패턴 : "이벤트 1건을 어떻게 안전하게 발행하나?"   (발행 신뢰성 — 점)
+Saga 패턴 :   "여러 서비스에 걸친 트랜잭션을 어떻게 정합 유지하나?" (워크플로우 — 선)
+```
+
+### Saga 패턴 필수 조건
+- **멱등성**: 네트워크 재시도로 같은 단계/보상이 중복 호출될 수 있음 → **각 단계와 보상 모두 멱등**이어야 함 
+- **보상 가능성**: 모든 단계가 되돌려질 수 있어야 함. 되돌릴 수 없는 액션(예: "예매 완료 SMS 발송" — 이미 보낸 문자는 못 지움)은 **마지막에 배치**해서 **그 뒤에 실패가 없게 함**
+  - 실무 설계 원칙: 되돌릴 수 없는 작업은 가장 마지막에
+
+### Saga의 핵심 — 보상 트랜잭션 (Compensating Transaction)
+> 글로벌 트랜잭션을 **독립적인 로컬 트랜잭션들의 체인으로 쪼개고**, 중간에 실패하면 **이미 성공한 단계들을 역순**으로 "보상(되돌리기)" 
+> - 핵심은 "진짜 롤백이 아니라 보상" 이라는 점
+```text
+// 티켓 도메인 예매 예시 사가 패턴 (좌석 → 결제 → 발권):
+[정상 흐름]
+  ① 좌석 확정 (Seat 서비스: HELD→SOLD)
+  ② 결제 (Payment 서비스: 카드 승인)
+  ③ 티켓 발권 (Ticket 서비스: 발급)
+  → 끝. 성공.
+
+[② 결제까지 됐는데 ③ 발권 실패]
+  ③ 실패 💥
+  ② 보상: 결제 취소(환불)         ← 역순으로
+  ① 보상: 좌석 해제(SOLD→AVAILABLE)
+  → 전체적으로 "아무 일 없었던 상태"로 수렴
+```
+
+### 두 가지 구현 방식 — Choreography vs Orchestration
+> 두가지를 섞어서 구축하는 방법을 많이 사용함.
+> - 잃어버리면 문제가큰 트랜잭션 : Orchestration
+> - 그외 트랜잭션 : Choreography
+
+#### 코레오그래피 (Choreography) 
+> 각 서비스가 이벤트를 발행하고, 다음 서비스가 그걸 구독해서 반응
+> - 이벤트가 흐름을 만드는 구조
+
+- 장점 : 서비스 간 결합 느슨, 중앙 병목 없음
+- 단점 : 흐름이 코드 어디에도 안 보임 (이벤트 따라 흩어짐) → 단계 많아지면 찾기가 어려워짐
+
+```text
+Seat:   SeatSold 이벤트 발행
+           ↓ (구독)
+Payment: 수신 → 결제 → PaymentApproved 발행
+           ↓ (구독)
+Ticket:  수신 → 발권 → TicketIssued 발행
+
+실패 시: Ticket이 TicketFailed 발행 → Payment가 구독해 환불 → ...
+```
+
+#### 구축 참고 사항
+- Message Queue를 사용 다만 성공/실패 에 따른 **topic을 분리하지 않고 한개의 topic에서 처리** 필요
+  - 이유 : **"순서 보장(Ordering)"** 때문이다.
+```java
+@KafkaListener(topics = "payment-events", groupId = "order-payment-group")
+public void handlePaymentResult(PaymentEvent event) {
+    
+    // 결제가 실패한 경우 (보상 트랜잭션 실행)
+    if (PAYMENT_FAILED == event.status()) {
+        // 1. DB에서 기존 주문 데이터를 조회
+        orderRepository.findById(event.orderId()).ifPresentOrElse(order -> {
+            // 2. 주문 상태를 PENDING에서 CANCELLED(또는 ORDER_FAILED)로 변경
+            order.changeStatus(CANCELLED); 
+            orderRepository.save(order); // DB 업데이트
+        }, () -> {
+            // Logging
+        });
+    } // if 
+    // 결제가 성공한 경우 (다음 정상 프로세스 진행 - 예: 배송 준비 등)
+    else if (PAYMENT_COMPLETED == event.status()) {
+        orderRepository.findById(event.orderId()).ifPresent(order -> {
+            order.changeStatus(CONFIRMED); // 주문 확정
+            orderRepository.save(order);
+        });
+    } // if - else
+}
+```
+
+#### 오케스트레이션 (Orchestration) 
+> 오케스트레이터가 각 서비스를 순서대로 호출하고, 실패하면 보상을 지시
+- 장점 : 흐름이 오케스트레이터에 명시적 → 추적·관리 쉬움
+- 단점 : 오케스트레이터에 로직 집중(병목·SPOF 가능성)
+```text
+Orchestrator:
+  → Seat.확정()      OK
+  → Payment.결제()   OK
+  → Ticket.발권()    실패 💥
+  → Payment.환불()   (보상)
+  → Seat.해제()      (보상)
+```
+
+### Saga의 가장 큰 함정 — 격리성(Isolation) 부재
+> 순차적으로 서비스 별로 DB 내용을 변경하기 때문임
+> - "커밋된 중간 상태가 외부에 노출된다" <— 해당 내용이 격리성 부재
+```text
+Seat: SOLD로 변경 ✅ (① 단계 커밋됨)
+   │  ← 바로 이 순간, ② 결제는 아직 진행 중
+   ▼
+다른 사용자/서비스가 이 좌석을 조회 → "SOLD네, 끝난 거래구나" 라고 오해
+   │
+   ▼
+그런데 ③ 발권 실패 → 보상으로 좌석 해제 → 다시 AVAILABLE
+   → 방금 "팔렸다"고 본 쪽은 잘못된 중간 상태를 본 것
+```
+
+#### 격리성 부재 대응 방법
+- **Semantic Lock** :  Table의 컬럼중 중간 상태에 `PENDING/SOLD_PENDING` 같은 진행 중 표시를 둬서, 다른 쪽이 "아직 확정 아님"을 알게 함
+- **Commutative Updates**: 순서 무관하게 같은 결과 나오는 연산으로 설계
+- **재시도/보상 자체의 멱등성**: 보상이 두 번 실행돼도 안전하게
+
+## 요약
+```text
+[2PC]   강한 일관성, 동기 블로킹 → 성능👎 , 사실상 더이상 사용하지 않음
+
+[Saga]  여러 서비스 워크플로우 정합 → 보상 트랜잭션으로 역순 취소
+        · [구분] : Choreography vs Orchestration
+        · 함정: 격리성 부재(중간 상태 노출) → semantic lock(중간 구분 값 추가) 로 막음
+        · 필수: 멱등성 + 보상 가능성 (🔍되돌릴 수 없는 작업은 맨 끝에 둬야 함)
+        
+[Outbox] dual-write 해결 → DB변경 + 발행 의도 원자적 기록, 실제 발행은 at-least-once
+        · Saga의 단계 이벤트 발행을 떠받치는 신뢰성 배관
+
+관계: Saga(흐름) ──on top of── Outbox(발행 신뢰성)
+```
