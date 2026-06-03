@@ -1,16 +1,78 @@
 services:
-  redis:
-    image: redis:latest
-    container_name: redis
+  # ==========================================
+  # 1. Redis Master 노드
+  # ==========================================
+  redis-master:
+    image: redis:7-alpine
+    container_name: redis-master
+    # --replica-announce-ip: 복제본이나 센티널에게 자신을 홍보할 때 사용할 IP를 지정합니다.
+    # 외부 호스트(맥)를 통해 포트 포워딩으로 접근해야 하므로 host.docker.internal을 알립니다.
+    command: redis-server /etc/redis/master.conf
+    volumes:
+      - ./conf:/etc/redis
     ports:
       - "6379:6379"
-    volumes:
-      - ./data:/data
-      - ./redis.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
+  # ==========================================
+  # 2. Redis Replica (복제본) 노드들
+  # ==========================================
+  redis-replica-1:
+    image: redis:7-alpine
+    container_name: redis-replica-1
+    command: redis-server /etc/redis/replica-1.conf
+    volumes:
+      - ./conf:/etc/redis
+    ports:
+      - "6380:6380"
+    depends_on:
+      - redis-master
+
+  redis-replica-2:
+    image: redis:7-alpine
+    container_name: redis-replica-2
+    command: redis-server /etc/redis/replica-2.conf
+    volumes:
+      - ./conf:/etc/redis
+    ports:
+      - "6381:6381"
+    depends_on:
+      - redis-master
+
+  # ==========================================
+  # 3. Redis Sentinel (감시자) 노드들
+  # ==========================================
+  # 센티널은 설정 파일(sentinel.conf)이 필수
+  # ==========================================
+
+  sentinel-1:
+    image: redis:7-alpine
+    container_name: sentinel-1
+    command: redis-sentinel /etc/redis/sentinel-1.conf
+    volumes:
+      - ./conf:/etc/redis
+    ports:
+      - "26379:26379"
+    depends_on:
+      - redis-master
+
+  sentinel-2:
+    image: redis:7-alpine
+    container_name: sentinel-2
+    command: redis-sentinel /etc/redis/sentinel-2.conf
+    volumes:
+      - ./conf:/etc/redis
+    ports:
+      - "26380:26380"
+    depends_on:
+      - redis-master
+
+  sentinel-3:
+    image: redis:7-alpine
+    container_name: sentinel-3
+    command: redis-sentinel /etc/redis/sentinel-3.conf
+    volumes:
+      - ./conf:/etc/redis
+    ports:
+      - "26381:26381"
+    depends_on:
+      - redis-master
