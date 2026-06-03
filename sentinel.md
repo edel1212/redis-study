@@ -95,3 +95,17 @@ Replica1, Replica2 → 데이터는 갖고 있지만 여전히 "읽기 전용 re
 | **확장** | 수직 확장(메모리 키우기) 위주                    | 수평 확장 가능                 |
 | **적합** | 데이터가 한 노드 메모리에 관리해도 괜찮아서, **HA만 필요할 경우** | 데이터가 너무 커서 **분산 필요할 경우** |
 | **운영 난이도** | 중간                                   | 높음                       |
+
+
+## Sentinel 구조
+```text
+master    : 6379  (쓰기)
+replica-1 : 6380  (master 복제)
+replica-2 : 6381  (master 복제)
+sentinel-1: 26379 ┐
+sentinel-2: 26380 ├ quorum=2 로 master 감시
+sentinel-3: 26381 ┘
+```
+
+## Sentinel Docker
+> 참고 : Redis Sentinel은 실행되면서 마스터의 상태가 바뀌거나 다른 센티널을 발견하면 자신의 sentinel.conf 파일에 설정을 **실시간으로 재작성(Rewrite)** 함
