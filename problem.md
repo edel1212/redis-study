@@ -47,6 +47,63 @@ public boolean release(Long seatId, Long userId) {
 }
 ```
 
+### 해결 방법 (실무)
+> 핵심 전환: "락 해제를 안전하게"가 아니라 "락 해제 정합성에 안 기대는 구조"로
+
+1. DB 조건부 UPDATE를 최종 권위로
+   UPDATE seat SET status='SOLD' WHERE id=? AND status='HELD' AND held_user_id=?
+   → 락이 오발 삭제/유실되어도 DB가 단일 행 원자성으로 1명만 확정 → 이중 판매 차단
+
+2. 확정 후 좌석 락 release(DEL) 생략 → TTL 자연 만료에 위임
+   → 오발 삭제를 일으키는 GET+DEL 코드 경로 자체를 제거
+
+※ 분산 락은 정합성 보장이 아니라 "경합 줄이기(UX)" 용도.
+최종 정합성은 DB 원자 연산(조건부 UPDATE/유니크 제약)이 책임진다.
+※ 즉시 정확한 해제가 꼭 필요한 예외 상황에만 Lua(GET+DEL 원자화) 사용.
+
+
+### 흐름
+```text
+[BookingFacadeService.confirm(seatId, userId)]   ← @Transactional 없음 (오케스트레이터)
+    │
+    ├─ ① (선택) Redis 점유자 사전 검증  ── seatLockService.getLockOwner(seatId)
+    │     │   목적: "확실히 아닌" 요청을 DB 트랜잭션 열기 전에 빠르게 차단 (성능용)
+    │     │   ⚠️ 이건 권위 아님. 통과해도 최종 판단은 ③ DB가 함
+    │     ├─ owner != userId  → fail 반환 (DB 안 감)
+    │     └─ owner == userId  → 계속
+    │
+    ▼
+    ├─ ② bookingService.markAsSold(seatId, userId)   ← 여기에만 @Transactional
+    │        │
+    │        ▼
+    │   ┌──────────────────────────────────────────────────────┐
+    │   │  ★ DB 조건부 UPDATE (최종 권위 / 원자적)              │
+    │   │                                                       │
+    │   │  UPDATE seat                                          │
+    │   │     SET status='SOLD', sold_user_id=:userId           │
+    │   │   WHERE id=:seatId                                     │
+    │   │     AND status='HELD'           ← 점유 상태일 때만    │
+    │   │     AND held_user_id=:userId    ← 점유자가 나일 때만  │
+    │   │                                                       │
+    │   │  → 반환값 updatedRows (0 또는 1)                      │
+    │   └──────────────────────────────────────────────────────┘
+    │        │
+    │        ├─ updatedRows == 1  → 확정 성공 → concertId 반환 → COMMIT
+    │        └─ updatedRows == 0  → 예외 throw (SeatNotOwned) → ROLLBACK
+    │
+    ▼ (커밋 성공 후)
+    └─ ③ Redis 정리 (best-effort, 자가 치유 대상)
+          try {
+            waitingService.releaseEntry(concertId, userId)   // entered/token
+            // seatLockService.release() 는 생략 가능 → TTL 자연 만료에 위임
+          } catch (e) {
+            log.error(...)   // 실패해도 무시: 좌석은 이미 DB에서 SOLD 확정
+          }
+    │
+    ▼
+  return BookingResponse.success
+```
+
 ## 문제사항 2
 > Redisson 사용하여 분산락 시 @Transaction이 동작하지 않는다.
 > - @Transaction은 AOP 레이어에서 동작하기 때문
