@@ -3,10 +3,14 @@ spring:
     name: yoo
   data:
     redis:
-      host: localhost
-      port: 6379
-      password:             # redis PW
-      timeout: 3000ms       # connection time out
+      sentinel:
+        # 🔸 conf의 monitor 이름과 반드시 일치
+        master: cache-redis
+        # 🔸 sentinel 대상 서버 목록
+        nodes:
+          - localhost:26379
+          - localhost:26380
+          - localhost:26381
 
       # Lettuce setting
       lettuce:
