@@ -167,3 +167,16 @@ appendfsync no        # OS가 알아서 저장 (가장 빠름, 가장 위험)
   → DB UPDATE
   → Redis DELETE (캐시 무효화)  ← 갱신이 아니라 삭제가 정석
 ```
+
+## 📎 부록 — 전체 문서 인덱스
+
+- [data-structure.md](./data-structure.md) — 자료구조 & 명령어 & TTL & 네이밍
+- [redis-with-spring-boot.md](./redis-with-spring-boot.md) — Spring Boot 연동
+- [ttl-strategy.md](./ttl-strategy.md) — TTL 전략 (Stampede / Jitter / 동적 TTL)
+- [redisson.md](./redisson.md) — Redisson & RLock & Watchdog
+- [pub-sub.md](./pub-sub.md) — Pub/Sub & Streams
+- [shed-lock.md](./shed-lock.md) — 분산 스케줄러
+- [data-consistency.md](./data-consistency.md) — 2PC / Saga / Outbox
+- [sentinel.md](./sentinel.md) — 고가용성 / Failover
+- [problem.md](./problem.md) — 진행 중 만난 이슈 모음
+- [make-use-of.md](./make-use-of.md) — 실전 활용 패턴
