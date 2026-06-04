@@ -1,6 +1,10 @@
 # Sentinel
 - Master가 정해지고 그외 Slave(replica)는 **같은 데이터를 복제하여 저장**한다.
-- Sentinel들은 Master는 감시하다. Master가 사망하면 투표를 통해 Slave(replica)중 Master를 선별한다.
+- Sentinel들은 Master는 감시한다. Master가 사망하면 투표를 통해 Slave(replica)중 Master를 선별한다.
+
+## 참고
+> "Sentinel은 가용성(HA) - failover을 주지만 강한 데이터 일관성은 주지 않는다.
+> - 비동기 복제라 failover 시 유실 윈도우가 존재한다. (중요 정보는 DB에 넣어야 함)
 
 ## 해결하려는 문제
 >  단일 Redis 상태에서 해당 서버가 죽으면 발생하는 문제
@@ -66,7 +70,7 @@ Replica1, Replica2 → 데이터는 갖고 있지만 여전히 "읽기 전용 re
 ① Master 응답 없음
       │
       ▼
-② 한 Sentinel가 "replica가 문제가 있다" 판단 → SDOWN (주관적 다운)
+② 한대의 Sentinel가 ""master redis가 무응답"" 판단 → SDOWN (주관적 다운)
       │
       ▼
 ③ quorum 수만큼의 Sentinel이 동의 → ODOWN (객관적 다운) ★진짜 다운 확정

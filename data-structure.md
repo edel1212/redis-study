@@ -100,9 +100,9 @@ SET name "김철수" KEEPTTL
 ## SET NX / XX 옵션
 > 명령어 마지막에 작성한다.
 - **NX** : 저장하려는 key가 없을 때만 SET을 진행한다.
-  - `SET age 20 SE 3000 NX`
+  - `SET age 20 EX 3000 NX`
 - **XX** : 저장하려는 key가 있을 때만 SET으로 덮어 씌운다.
-  - `SET age 15 SE 3000 XX`
+  - `SET age 15 EX 3000 XX`
 
 
 
@@ -198,7 +198,7 @@ LRANGE mylist 0 -1    # Z A B C
 LRANGE mylist 0 1     # Z A
 
 # 특정 인덱스 조회
-LINDEX mylist 0 0       # Z
+LINDEX mylist 0       # Z
 LRANGE RL -2 -1   # 마지막 2개
 
 # 길이 조회
@@ -217,8 +217,8 @@ RPOP mylist    # C → 결과: [A, B]
 ## Set
 > 중복을 허용하지 않는 집합
 > SET자료 구조를 만들고 하위에 value를 넣는 개념이다.
-> - TTL 설정은 Key 단위가 아닌 SET 단위로 설정이 가능하다.
-- 같은 중복을 허용하지 않는 자료 구조지만 개수를 추정하는 ㅏ`HyperLogLog`도 있다.
+> - TTL 설정 : Set은 그 자체가 1개 Key라 멤버(value) 개별 TTL 불가
+- 같은 중복을 허용하지 않는 자료 구조지만 개수를 추정하는 `HyperLogLog`도 있다.
   - 중복 없는 데이터 개수(Cardinality)를 **추정하는 자료구조**
 
 ###  추가 / 조회 / 삭제
